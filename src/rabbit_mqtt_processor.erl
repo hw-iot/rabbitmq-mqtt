@@ -807,12 +807,10 @@ human_readable_mqtt_version(_) ->
     "N/A".
 
 send_client(Frame, #proc_state{ socket = Sock }) ->
-    bin_utils:dump(trace_send_client, 2),
-    Trace = try throw(42) catch 42 -> erlang:get_stacktrace() end,
-    erlang:display(Trace),
+    bin_utils:dump(send_client_frame, Frame),
 
     Package= rabbit_mqtt_frame:serialise(Frame),
-    bin_utils:dump(response, Package),
+    bin_utils:dump(send_client_package, Package),
     rabbit_net:port_command(Sock, Package).
 
 close_connection(PState = #proc_state{ connection = undefined }) ->

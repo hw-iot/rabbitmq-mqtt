@@ -1,11 +1,38 @@
 -module(huwo_jt808_processor).
 
--export([process_frame/2]).
+-export([
+         process_frame/2,
+         send_client/2
+        ]).
+
+-include_lib("amqp_client/include/amqp_client.hrl").
+-include("rabbit_mqtt_frame.hrl").
+-include("rabbit_mqtt.hrl").
+-include("include/huwo_jt808_frame.hrl").
 
 process_frame(Frame, PState) ->
     Type = 1,
     process_request(Type, Frame, PState),
     ok.
 
-process_request(_Type, Frame, _PState) ->
-    bin_utils:dump(process_request, Frame).
+process_request(_MessageType,
+                _Frame,
+                PState0 = #proc_state{ send_fun       = _SendFun }) ->
+    Frame = #huwo_jt808_frame{
+               header = #huwo_jt808_frame_header{
+                           id = 42,
+                           timestamp = 201806011200,
+                           sn = 1},
+               payload = <<"hello, 808!", 16#3D, 16#3E>>},
+
+    bin_utils:dump(process_request, Frame),
+    %% SendFun = send_client/2,
+    send_client(Frame, PState0),
+    {ok, PState0}.
+
+send_client(Frame, #proc_state{ socket = Sock }) ->
+    bin_utils:dump(send_client_frame, Frame),
+
+    Package = huwo_jt808_frame:serialise(Frame),
+    bin_utils:dump(send_client_package, Package),
+    rabbit_net:port_command(Sock, Package).

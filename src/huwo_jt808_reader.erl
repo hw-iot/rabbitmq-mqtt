@@ -3,11 +3,17 @@
 -export([process_received_bytes/2]).
 -export([parse/2]).
 
-process_received_bytes(Bytes, State) ->
-    case parse(Bytes, State) of
+-include_lib("amqp_client/include/amqp_client.hrl").
+-include("rabbit_mqtt.hrl").
+
+process_received_bytes(Bytes,
+                       State = #state{ parse_state = ParseState,
+                                       proc_state  = ProcState }) ->
+    bin_utils:dump(process_received_bytes_state, State),
+    case parse(Bytes, ParseState) of
         {ok, Frame}->
             bin_utils:dump(parse_result, Frame),
-            case huwo_jt808_processor:process_frame(Frame, State) of
+            case huwo_jt808_processor:process_frame(Frame, ProcState) of
                 {ok} ->
                     {ok}
             end;
