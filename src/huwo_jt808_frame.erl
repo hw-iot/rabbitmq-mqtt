@@ -1,22 +1,25 @@
 %% TODO segment
 
--module(jt808_frame).
+-module(huwo_jt808_frame).
 
 -author("Luo Tao <lotreal@gmail.com>").
 
--export([parse/1, serialise/1]).
+-export([parse/2, parse/1, serialise/1]).
 -export([dump/1]).
 
--include("jt808_frame.hrl").
+-include("huwo_jt808_frame.hrl").
 
 %% API
+parse(Package, _) ->
+    parse(Package).
+
 parse(Package) ->
     Content = parse_content(Package, ?FLAG_BOUNDARY),
     <<Id:16, Property:2/binary, Timestamp:6/binary, SN:16, Rest/binary>> = Content,
     <<Aes:1, Zip:1, Divide:1, Len:13>> = Property,
     <<Payload:Len/binary, _:8>> = Rest,
-    {ok, #jt808_frame{
-            header  = #jt808_frame_header{
+    {ok, #huwo_jt808_frame{
+            header  = #huwo_jt808_frame_header{
                          id        = Id,
                          aes       = Aes,
                          zip       = Zip,
@@ -26,8 +29,8 @@ parse(Package) ->
                          sn        = SN},
             payload = Payload}}.
 
-serialise(#jt808_frame{
-             header = #jt808_frame_header{
+serialise(#huwo_jt808_frame{
+             header = #huwo_jt808_frame_header{
                          id = Id,
                          aes = Aes,
                          zip = Zip,
@@ -83,8 +86,8 @@ checksum(<<I, T/binary>>, Acc) -> checksum(T,  Acc bxor I);
 checksum(<<>>, Acc) ->            <<Acc>>.
 
 %% debug
-dump(#jt808_frame{
-              header = #jt808_frame_header{
+dump(#huwo_jt808_frame{
+              header = #huwo_jt808_frame_header{
                           id        = Id,
                           aes       = Aes,
                           zip       = Zip,

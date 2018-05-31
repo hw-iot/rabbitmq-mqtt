@@ -3,12 +3,12 @@
 -define(ESCAPED_3D, <<16#3D, 16#01>>).
 
 
-%% -record(jt808_frame_options,
+%% -record(huwo_jt808_frame_options,
 %%         {boundary = ?FLAG_BOUNDARY}).
 
--record(jt808_frame, {header, payload}).
+-record(huwo_jt808_frame, {header, payload}).
 
--record(jt808_frame_header,
+-record(huwo_jt808_frame_header,
         {id,
          aes     = 0,
          zip     = 0,

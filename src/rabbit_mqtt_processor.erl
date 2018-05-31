@@ -82,6 +82,10 @@ process_request(?CONNECT,
                 PState0 = #proc_state{ ssl_login_name = SSLLoginName,
                                        send_fun       = SendFun,
                                        adapter_info   = AdapterInfo = #amqp_adapter_info{additional_info = Extra} }) ->
+    bin_utils:dump(trace_process_request, 1),
+    Trace = try throw(42) catch 42 -> erlang:get_stacktrace() end,
+    erlang:display(Trace),
+
     ClientId = case ClientId0 of
                    []    -> rabbit_mqtt_util:gen_client_id();
                    [_|_] -> ClientId0
@@ -803,6 +807,10 @@ human_readable_mqtt_version(_) ->
     "N/A".
 
 send_client(Frame, #proc_state{ socket = Sock }) ->
+    bin_utils:dump(trace_send_client, 2),
+    Trace = try throw(42) catch 42 -> erlang:get_stacktrace() end,
+    erlang:display(Trace),
+
     Package= rabbit_mqtt_frame:serialise(Frame),
     bin_utils:dump(response, Package),
     rabbit_net:port_command(Sock, Package).

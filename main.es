@@ -5,26 +5,26 @@
 
 -compile(export_all).
 
--include("include/jt808_frame.hrl").
+-include("include/huwo_jt808_frame.hrl").
 
-test_jt808_frame()->
-    PackageOrigin = #jt808_frame{
-                       header = #jt808_frame_header{
+test_huwo_jt808_frame()->
+    PackageOrigin = #huwo_jt808_frame{
+                       header = #huwo_jt808_frame_header{
                                    id = 42,
                                    timestamp = 201806011200,
                                    sn = 1},
                        payload = <<"hello, 808!", 16#3D, 16#3E>>},
 
-    jt808_frame:dump(PackageOrigin),
+    huwo_jt808_frame:dump(PackageOrigin),
 
-    Frame = jt808_frame:serialise(PackageOrigin),
+    Frame = huwo_jt808_frame:serialise(PackageOrigin),
     bin_utils:dump(frame, Frame),
 
-    {ok, PackageParsed} = jt808_frame:parse(Frame),
-    jt808_frame:dump(PackageParsed).
+    {ok, PackageParsed} = huwo_jt808_frame:parse(Frame),
+    huwo_jt808_frame:dump(PackageParsed).
 
 main(_) ->
-    test_jt808_frame(),
+    test_huwo_jt808_frame(),
     %% Package = <<16,35,0,6,77,81,73,115,100,112,3,2,0,60,0,21,109,111,115,113,112,117,98,
     %%             124,56,51,55,48,48,45,109,111,114,103,97,110,97>>,
 
