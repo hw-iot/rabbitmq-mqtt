@@ -4,26 +4,27 @@ PROJECT_MOD = rabbit_mqtt
 
 define PROJECT_ENV
 [
-	    {default_user, <<"guest">>},
-	    {default_pass, <<"guest">>},
-	    {ssl_cert_login,false},
-	    %% To satisfy an unfortunate expectation from popular MQTT clients.
-	    {allow_anonymous, true},
-	    {vhost, <<"/">>},
-	    {exchange, <<"amq.topic">>},
-	    {subscription_ttl, 86400000}, %% 24 hours
-	    {retained_message_store, rabbit_mqtt_retained_msg_store_dets},
-	    %% only used by DETS store
-	    {retained_message_store_dets_sync_interval, 2000},
-	    {prefetch, 10},
-	    {ssl_listeners, []},
-	    {num_ssl_acceptors, 1},
-	    {tcp_listeners, [1883]},
-	    {num_tcp_acceptors, 10},
-	    {tcp_listen_options, [{backlog,   128},
-	                          {nodelay,   true}]},
-	    {proxy_protocol, false}
-	  ]
+			{log, [{file, [{level, debug}]}]},
+			{default_user, <<"guest">>},
+			{default_pass, <<"guest">>},
+			{ssl_cert_login,false},
+			%% To satisfy an unfortunate expectation from popular MQTT clients.
+			{allow_anonymous, true},
+			{vhost, <<"/">>},
+			{exchange, <<"amq.topic">>},
+			{subscription_ttl, 86400000}, %% 24 hours
+			{retained_message_store, rabbit_mqtt_retained_msg_store_dets},
+			%% only used by DETS store
+			{retained_message_store_dets_sync_interval, 2000},
+			{prefetch, 10},
+			{ssl_listeners, []},
+			{num_ssl_acceptors, 1},
+			{tcp_listeners, [1883]},
+			{num_tcp_acceptors, 10},
+			{tcp_listen_options, [{backlog,   128},
+														{nodelay,   true}]},
+			{proxy_protocol, false}
+		]
 endef
 
 define PROJECT_APP_EXTRA_KEYS
@@ -57,3 +58,6 @@ include erlang.mk
 
 clean::
 	if test -d test/java_SUITE_data; then cd test/java_SUITE_data && $(MAKE) clean; fi
+
+tags::
+	find . -type f -iname "*.erl" -o -iname "*.hrl" | etags -

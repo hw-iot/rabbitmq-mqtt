@@ -30,7 +30,9 @@ initial_state() -> none.
 
 parse(<<>>, none) ->
     {more, fun(Bin) -> parse(Bin, none) end};
-parse(<<MessageType:4, Dup:1, QoS:2, Retain:1, Rest/binary>>, none) ->
+parse(<<MessageType:4, Dup:1, QoS:2, Retain:1, Rest/binary>> = Package, none) ->
+    bin_utils:dump(messagetype, MessageType),
+    bin_utils:dump(package, Package),
     parse_remaining_len(Rest, #mqtt_frame_fixed{ type   = MessageType,
                                                  dup    = bool(Dup),
                                                  qos    = QoS,
@@ -76,18 +78,18 @@ parse_frame(Bin, #mqtt_frame_fixed{ type = Type,
                 true ->
                     wrap(Fixed,
                          #mqtt_frame_connect{
-                           proto_ver   = ProtoVersion,
-                           will_retain = bool(WillRetain),
-                           will_qos    = WillQos,
-                           will_flag   = bool(WillFlag),
-                           clean_sess  = bool(CleanSession),
-                           keep_alive  = KeepAlive,
-                           client_id   = ClientId,
-                           will_topic  = WillTopic,
-                           will_msg    = WillMsg,
-                           username    = UserName,
-                           password    = PasssWord}, Rest);
-               false ->
+                            proto_ver   = ProtoVersion,
+                            will_retain = bool(WillRetain),
+                            will_qos    = WillQos,
+                            will_flag   = bool(WillFlag),
+                            clean_sess  = bool(CleanSession),
+                            keep_alive  = KeepAlive,
+                            client_id   = ClientId,
+                            will_topic  = WillTopic,
+                            will_msg    = WillMsg,
+                            username    = UserName,
+                            password    = PasssWord}, Rest);
+                false ->
                     {error, protocol_header_corrupt}
             end;
         {?PUBLISH, <<FrameBin:Length/binary, Rest/binary>>} ->
@@ -119,7 +121,7 @@ parse_frame(Bin, #mqtt_frame_fixed{ type = Type,
                            parse_frame(<<TooShortBin/binary, BinMore/binary>>,
                                        Fixed, Length)
                    end}
-     end.
+    end.
 
 parse_topics(_, <<>>, Topics) ->
     Topics;

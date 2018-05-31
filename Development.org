@@ -1,0 +1,8 @@
+#+BEGIN_SRC shell
+gmake clean run-broker
+
+# mqtt connect package
+cat <(echo 102300064D51497364700302003C00156D6F73717075627C31353235382D6D6F7267616E61 | xxd -r -p ) - | nc localhost 1883
+# jt808 package
+cat <(echo 3E002A000D201806011200000168656C6C6F2C20383038213D013D027C3E | xxd -r -p ) - | nc localhost 1883
+#+END_SRC

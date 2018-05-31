@@ -803,7 +803,9 @@ human_readable_mqtt_version(_) ->
     "N/A".
 
 send_client(Frame, #proc_state{ socket = Sock }) ->
-    rabbit_net:port_command(Sock, rabbit_mqtt_frame:serialise(Frame)).
+    Package= rabbit_mqtt_frame:serialise(Frame),
+    bin_utils:dump(response, Package),
+    rabbit_net:port_command(Sock, Package).
 
 close_connection(PState = #proc_state{ connection = undefined }) ->
     PState;
