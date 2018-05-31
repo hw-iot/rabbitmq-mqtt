@@ -4,11 +4,18 @@
 -export([parse/2]).
 
 process_received_bytes(Bytes, State) ->
-    ParseResult = parse(Bytes, State),
-    %% case parse(jt808, Bytes, ParseState) of
-    %%     {ok, Frame808}
-    bin_utils:dump(parse_result, ParseResult),
-    ok.
+    case parse(Bytes, State) of
+        {ok, Frame}->
+            bin_utils:dump(parse_result, Frame),
+            case huwo_jt808_processor:process_frame(Frame, State) of
+                {ok} ->
+                    {ok}
+            end;
+        {error, Error} ->
+            rabbit_log_connection:error("JT808 detected framing error '~p'~n",
+                                        [Error]),
+            {stop, {shutdown, Error}, State}
+    end.
 
 %%----------------------------------------------------------------------------
 parse(Bytes, ParseState) ->
