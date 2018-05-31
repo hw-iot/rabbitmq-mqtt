@@ -28,6 +28,7 @@ process_request(_MessageType,
     bin_utils:dump(process_request, Frame),
     %% SendFun = send_client/2,
     send_client(Frame, PState0),
+    amqp_pub(Frame),
     {ok, PState0}.
 
 send_client(Frame, #proc_state{ socket = Sock }) ->
@@ -36,3 +37,26 @@ send_client(Frame, #proc_state{ socket = Sock }) ->
     Package = huwo_jt808_frame:serialise(Frame),
     bin_utils:dump(send_client_package, Package),
     rabbit_net:port_command(Sock, Package).
+
+
+amqp_pub(#huwo_jt808_frame{
+            payload = Payload
+           }) ->
+    {ok, Connection} =
+        amqp_connection:start(#amqp_params_network{host = "localhost"}),
+    {ok, Channel} = amqp_connection:open_channel(Connection),
+
+    amqp_channel:call(Channel, #'exchange.declare'{exchange = <<"metronome">>,
+                                                   type = <<"topic">>}),
+
+    RoutingKey = <<"anonymous.info">>,
+    amqp_channel:cast(Channel,
+                      #'basic.publish'{
+                         exchange = <<"metronome">>,
+                         routing_key = RoutingKey},
+                      #amqp_msg{payload = Payload}),
+
+    io:format(" [x] Sent ~p:~p~n", [RoutingKey, Payload]),
+    ok = amqp_channel:close(Channel),
+    ok = amqp_connection:close(Connection),
+    ok.
