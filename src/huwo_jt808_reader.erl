@@ -25,7 +25,7 @@ process_received_bytes(Bytes,
     bin_utils:dump(process_received_bytes_state, State),
     case parse(Bytes, ParseState) of
         {ok, Frame}->
-            bin_utils:dump(parse_result, Frame),
+            bin_utils:dump(parse_result, huwo_jt808_processor:process_frame(Frame, ProcState)),
             case huwo_jt808_processor:process_frame(Frame, ProcState) of
                 {ok} ->
                     {ok}
@@ -44,7 +44,3 @@ parse(Bytes, ParseState) ->
         _:Reason ->
             {error, {cannot_parse, Reason, erlang:get_stacktrace()}}
     end.
-
-
-
-

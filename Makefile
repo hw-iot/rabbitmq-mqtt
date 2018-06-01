@@ -1,5 +1,5 @@
 PROJECT = rabbitmq_jt808
-PROJECT_DESCRIPTION = RabbitMQ MQTT Adapter
+PROJECT_DESCRIPTION = RabbitMQ JT808 Adapter
 PROJECT_MOD = huwo_jt808
 
 define PROJECT_ENV
@@ -8,7 +8,7 @@ define PROJECT_ENV
 			{default_user, <<"guest">>},
 			{default_pass, <<"guest">>},
 			{ssl_cert_login,false},
-			%% To satisfy an unfortunate expectation from popular MQTT clients.
+			%% To satisfy an unfortunate expectation from popular JT808 clients.
 			{allow_anonymous, true},
 			{vhost, <<"/">>},
 			{exchange, <<"amq.topic">>},

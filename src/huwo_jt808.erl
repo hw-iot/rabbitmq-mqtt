@@ -25,7 +25,7 @@
 start(normal, []) ->
     {ok, Listeners} = application:get_env(tcp_listeners),
     {ok, SslListeners} = application:get_env(ssl_listeners),
-    Result = rabbit_mqtt_sup:start_link({Listeners, SslListeners}, []),
+    Result = huwo_jt808_sup:start_link({Listeners, SslListeners}, []),
     EMPid = case rabbit_event:start_link() of
               {ok, Pid}                       -> Pid;
               {error, {already_started, Pid}} -> Pid
@@ -37,7 +37,7 @@ stop(_State) ->
     ok.
 
 emit_connection_info_all(Nodes, Items, Ref, AggregatorPid) ->
-    Pids = [spawn_link(Node, rabbit_mqtt, emit_connection_info_local,
+    Pids = [spawn_link(Node, huwo_jt808, emit_connection_info_local,
                        [Items, Ref, AggregatorPid])
             || Node <- Nodes],
     rabbit_control_misc:await_emitters_termination(Pids),
