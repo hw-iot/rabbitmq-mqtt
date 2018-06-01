@@ -30,7 +30,7 @@ start(normal, []) ->
               {ok, Pid}                       -> Pid;
               {error, {already_started, Pid}} -> Pid
             end,
-    gen_event:add_handler(EMPid, rabbit_mqtt_vhost_event_handler, []),
+    gen_event:add_handler(EMPid, huwo_jt808_vhost_event_handler, []),
     Result.
 
 stop(_State) ->
