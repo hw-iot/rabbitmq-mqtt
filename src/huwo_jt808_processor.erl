@@ -26,13 +26,13 @@ process_frame(Frame = #huwo_jt808_frame{ header = #huwo_jt808_frame_header{ id =
 
 process_request(?MSG_ID_REG,
                 Frame,
-                PState0 = #proc_state{ ssl_login_name = SSLLoginName,
-                                       send_fun       = SendFun,
-                                       adapter_info   = AdapterInfo = #amqp_adapter_info{additional_info = Extra} }) ->
+                PState0 = #proc_state{ ssl_login_name = _SSLLoginName,
+                                       send_fun       = _SendFun,
+                                       adapter_info   = _AdapterInfo = #amqp_adapter_info{additional_info = _Extra} }) ->
     % TODO: 验证登录
     % TODO: 给当前用户开推送队列，用于服务端推送
     bin_utils:dump(process_request, Frame),
-    {ok, PState1};
+    {ok, PState0};
 
 process_request(_MessageType,
                 _Frame,
