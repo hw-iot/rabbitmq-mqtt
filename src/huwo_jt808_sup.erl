@@ -57,13 +57,13 @@ listener_specs(Fun, Args, Listeners) ->
 tcp_listener_spec([Address, SocketOpts, NumAcceptors]) ->
     rabbit_networking:tcp_listener_spec(
       huwo_jt808_listener_sup, Address, SocketOpts,
-      transport(jt808), rabbit_mqtt_connection_sup, [],
+      transport(jt808), huwo_jt808_connection_sup, [],
       jt808, NumAcceptors, "JT808 TCP Listener").
 
 ssl_listener_spec([Address, SocketOpts, SslOpts, NumAcceptors]) ->
     rabbit_networking:tcp_listener_spec(
       huwo_jt808_listener_sup, Address, SocketOpts ++ SslOpts,
-      transport('jt808/ssl'), rabbit_mqtt_connection_sup, [],
+      transport('jt808/ssl'), huwo_jt808_connection_sup, [],
       'jt808/ssl', NumAcceptors, "JT808 SSL Listener").
 
 transport(Protocol) ->
