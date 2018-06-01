@@ -4,10 +4,14 @@
 
 -author("Luo Tao <lotreal@gmail.com>").
 
+-export([initial_state/0]).
 -export([parse/2, parse/1, serialise/1]).
 -export([dump/1]).
 
 -include("huwo_jt808_frame.hrl").
+
+
+initial_state() -> none.
 
 %% API
 parse(Package, _) ->
