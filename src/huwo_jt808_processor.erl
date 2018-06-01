@@ -79,3 +79,10 @@ amqp_pub(#huwo_jt808_frame{
     ok = amqp_channel:close(Channel),
     ok = amqp_connection:close(Connection),
     ok.
+
+
+
+
+
+%%---------------------------------------------------------------------
+% private
