@@ -11,18 +11,19 @@
 -include("include/huwo_jt808_frame.hrl").
 
 
+%% 开始处理包
+process_frame(Frame = #huwo_jt808_frame{ header = #huwo_jt808_frame_header{ id = 42}},
+              PState) ->
+    case process_request(42, Frame, PState) of
+        {ok, PState1} -> {ok, PState1, PState1#proc_state.connection};
+        Ret -> Ret
+    end;
 %% 如果不是注册设备的消息，但状态中的connection没定义说明没有注册就发送其他信息
 process_frame(#huwo_jt808_frame{ header = #huwo_jt808_frame_header{ id = MsgId}},
               PState = #proc_state{ connection = undefined }) %%
             when MsgId =/= ?MSG_ID_REG ->
-                {error, connect_expected, PState};
-%% 开始处理包
-process_frame(Frame = #huwo_jt808_frame{ header = #huwo_jt808_frame_header{ id = MsgId }},
-              PState) ->
-    case process_request(MsgId, Frame, PState) of
-        {ok, PState1} -> {ok, PState1, PState1#proc_state.connection};
-        Ret -> Ret
-    end.
+                {error, connect_expected, PState}.
+
 
 process_request(?MSG_ID_REG,
                 Frame,
