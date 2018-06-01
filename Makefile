@@ -1,4 +1,4 @@
-PROJECT = rabbitmq_mqtt
+PROJECT = rabbitmq_jt808
 PROJECT_DESCRIPTION = RabbitMQ MQTT Adapter
 PROJECT_MOD = huwo_jt808
 

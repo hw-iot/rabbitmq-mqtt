@@ -16,3 +16,4 @@ plugins/
 test/config_schema_SUITE_data/schema/
 
 rabbitmq_jt808.d
+rabbitmq_mqtt.d

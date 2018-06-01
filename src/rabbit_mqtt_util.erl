@@ -51,7 +51,7 @@ gen_client_id() ->
     lists:nthtail(1, rabbit_guid:string(rabbit_guid:gen_secure(), [])).
 
 env(Key) ->
-    case application:get_env(rabbitmq_mqtt, Key) of
+    case application:get_env(rabbitmq_jt808, Key) of
         {ok, Val} -> coerce_env_value(Key, Val);
         undefined -> undefined
     end.

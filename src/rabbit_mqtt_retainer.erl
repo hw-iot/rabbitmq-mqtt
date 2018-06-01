@@ -66,7 +66,7 @@ init([StoreMod, VHost]) ->
     {ok, State}.
 
 store_module() ->
-    case application:get_env(rabbitmq_mqtt, retained_message_store) of
+    case application:get_env(rabbitmq_jt808, retained_message_store) of
         {ok, Mod} -> Mod;
         undefined -> undefined
     end.

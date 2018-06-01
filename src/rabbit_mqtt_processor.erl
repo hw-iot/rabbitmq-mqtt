@@ -27,7 +27,7 @@
 -include("rabbit_mqtt_frame.hrl").
 -include("rabbit_mqtt.hrl").
 
--define(APP, rabbitmq_mqtt).
+-define(APP, rabbitmq_jt808).
 -define(FRAME_TYPE(Frame, Type),
         Frame = #mqtt_frame{ fixed = #mqtt_frame_fixed{ type = Type }}).
 
@@ -653,7 +653,7 @@ creds(User, Pass, SSLLoginName) ->
                                         list_to_binary(Pass)};
         %% Either username or password is provided
         {true, false, _, _}         -> {invalid_creds, {User, Pass}};
-        %% rabbitmq_mqtt.ssl_cert_login is true. SSL user name provided.
+        %% rabbitmq_jt808.ssl_cert_login is true. SSL user name provided.
         %% Authenticating using username only.
         {false, false, true, _}     -> {SSLLoginName, none};
         %% Anonymous connection uses default credentials

@@ -5,7 +5,7 @@
 %% for details
 %% ----------------------------------------------------------------------------
 
-%  {rabbitmq_mqtt,
+%  {rabbitmq_jt808,
 %   [%% Set the default user name and password. Will be used as the default login
 %% if a connecting client provides no other login details.
 %%
@@ -15,20 +15,20 @@
 %% {default_user, <<"guest">>},
 %% {default_pass, <<"guest">>},
 
-{mapping, "mqtt.default_user", "rabbitmq_mqtt.default_user", [
+{mapping, "mqtt.default_user", "rabbitmq_jt808.default_user", [
     {datatype, string}
 ]}.
 
-{mapping, "mqtt.default_pass", "rabbitmq_mqtt.default_pass", [
+{mapping, "mqtt.default_pass", "rabbitmq_jt808.default_pass", [
     {datatype, string}
 ]}.
 
-{translation, "rabbitmq_mqtt.default_user",
+{translation, "rabbitmq_jt808.default_user",
 fun(Conf) ->
     list_to_binary(cuttlefish:conf_get("mqtt.default_user", Conf))
 end}.
 
-{translation, "rabbitmq_mqtt.default_pass",
+{translation, "rabbitmq_jt808.default_pass",
 fun(Conf) ->
     list_to_binary(cuttlefish:conf_get("mqtt.default_pass", Conf))
 end}.
@@ -39,7 +39,7 @@ end}.
 %%
 %% {allow_anonymous, true},
 
-{mapping, "mqtt.allow_anonymous", "rabbitmq_mqtt.allow_anonymous",
+{mapping, "mqtt.allow_anonymous", "rabbitmq_jt808.allow_anonymous",
     [{datatype, {enum, [true, false]}}]}.
 
 %% If you have multiple chosts, specify the one to which the
@@ -47,9 +47,9 @@ end}.
 %%
 %% {vhost, <<"/">>},
 
-{mapping, "mqtt.vhost", "rabbitmq_mqtt.vhost", [{datatype, string}]}.
+{mapping, "mqtt.vhost", "rabbitmq_jt808.vhost", [{datatype, string}]}.
 
-{translation, "rabbitmq_mqtt.vhost",
+{translation, "rabbitmq_jt808.vhost",
 fun(Conf) ->
     list_to_binary(cuttlefish:conf_get("mqtt.vhost", Conf))
 end}.
@@ -58,9 +58,9 @@ end}.
 %%
 %% {exchange, <<"amq.topic">>},
 
-{mapping, "mqtt.exchange", "rabbitmq_mqtt.exchange", [{datatype, string}]}.
+{mapping, "mqtt.exchange", "rabbitmq_jt808.exchange", [{datatype, string}]}.
 
-{translation, "rabbitmq_mqtt.exchange",
+{translation, "rabbitmq_jt808.exchange",
 fun(Conf) ->
     list_to_binary(cuttlefish:conf_get("mqtt.exchange", Conf))
 end}.
@@ -68,11 +68,11 @@ end}.
 %% Specify TTL (time to live) to control the lifetime of non-clean sessions.
 %%
 %% {subscription_ttl, 1800000},
-{mapping, "mqtt.subscription_ttl", "rabbitmq_mqtt.subscription_ttl", [
+{mapping, "mqtt.subscription_ttl", "rabbitmq_jt808.subscription_ttl", [
     {datatype, [{enum, [undefined, infinity]}, integer]}
 ]}.
 
-{translation, "rabbitmq_mqtt.subscription_ttl",
+{translation, "rabbitmq_jt808.subscription_ttl",
 fun(Conf) ->
     case cuttlefish:conf_get("mqtt.subscription_ttl", Conf, undefined) of
         undefined -> undefined;
@@ -85,21 +85,21 @@ end}.
 %% messages that will be delivered).
 %%
 %% {prefetch, 10},
-{mapping, "mqtt.prefetch", "rabbitmq_mqtt.prefetch",
+{mapping, "mqtt.prefetch", "rabbitmq_jt808.prefetch",
     [{datatype, integer}]}.
 
 
-{mapping, "mqtt.retained_message_store", "rabbitmq_mqtt.retained_message_store",
+{mapping, "mqtt.retained_message_store", "rabbitmq_jt808.retained_message_store",
     [{datatype, atom}]}.
 
-{mapping, "mqtt.retained_message_store_dets_sync_interval", "rabbitmq_mqtt.retained_message_store_dets_sync_interval",
+{mapping, "mqtt.retained_message_store_dets_sync_interval", "rabbitmq_jt808.retained_message_store_dets_sync_interval",
     [{datatype, integer}]}.
 
 %% Whether or not to enable proxy protocol support.
 %%
 %% {proxy_protocol, false}
 
-{mapping, "mqtt.proxy_protocol", "rabbitmq_mqtt.proxy_protocol",
+{mapping, "mqtt.proxy_protocol", "rabbitmq_jt808.proxy_protocol",
     [{datatype, {enum, [true, false]}}]}.
 
 %% TCP/SSL Configuration (as per the broker configuration).
@@ -107,15 +107,15 @@ end}.
 %% {tcp_listeners, [1883]},
 %% {ssl_listeners, []},
 
-{mapping, "mqtt.listeners.tcp", "rabbitmq_mqtt.tcp_listeners",[
+{mapping, "mqtt.listeners.tcp", "rabbitmq_jt808.tcp_listeners",[
     {datatype, {enum, [none]}}
 ]}.
 
-{mapping, "mqtt.listeners.tcp.$name", "rabbitmq_mqtt.tcp_listeners",[
+{mapping, "mqtt.listeners.tcp.$name", "rabbitmq_jt808.tcp_listeners",[
     {datatype, [integer, ip]}
 ]}.
 
-{translation, "rabbitmq_mqtt.tcp_listeners",
+{translation, "rabbitmq_jt808.tcp_listeners",
 fun(Conf) ->
     case cuttlefish:conf_get("mqtt.listeners.tcp", Conf, undefined) of
         none -> [];
@@ -125,15 +125,15 @@ fun(Conf) ->
     end
 end}.
 
-{mapping, "mqtt.listeners.ssl", "rabbitmq_mqtt.ssl_listeners",[
+{mapping, "mqtt.listeners.ssl", "rabbitmq_jt808.ssl_listeners",[
     {datatype, {enum, [none]}}
 ]}.
 
-{mapping, "mqtt.listeners.ssl.$name", "rabbitmq_mqtt.ssl_listeners",[
+{mapping, "mqtt.listeners.ssl.$name", "rabbitmq_jt808.ssl_listeners",[
     {datatype, [integer, ip]}
 ]}.
 
-{translation, "rabbitmq_mqtt.ssl_listeners",
+{translation, "rabbitmq_jt808.ssl_listeners",
 fun(Conf) ->
     case cuttlefish:conf_get("mqtt.listeners.ssl", Conf, undefined) of
         none -> [];
@@ -149,15 +149,15 @@ end}.
 %% {num_tcp_acceptors, 10},
 %% {num_ssl_acceptors, 1},
 
-{mapping, "mqtt.num_acceptors.ssl", "rabbitmq_mqtt.num_ssl_acceptors", [
+{mapping, "mqtt.num_acceptors.ssl", "rabbitmq_jt808.num_ssl_acceptors", [
     {datatype, integer}
 ]}.
 
-{mapping, "mqtt.num_acceptors.tcp", "rabbitmq_mqtt.num_tcp_acceptors", [
+{mapping, "mqtt.num_acceptors.tcp", "rabbitmq_jt808.num_tcp_acceptors", [
     {datatype, integer}
 ]}.
 
-{mapping, "mqtt.ssl_cert_login", "rabbitmq_mqtt.ssl_cert_login", [
+{mapping, "mqtt.ssl_cert_login", "rabbitmq_jt808.ssl_cert_login", [
     {datatype, {enum, [true, false]}}]}.
 
 
@@ -169,10 +169,10 @@ end}.
 
 %% TCP listener section ======================================================
 
-{mapping, "mqtt.tcp_listen_options", "rabbitmq_mqtt.rabbit.tcp_listen_options", [
+{mapping, "mqtt.tcp_listen_options", "rabbitmq_jt808.rabbit.tcp_listen_options", [
     {datatype, {enum, [none]}}]}.
 
-{translation, "rabbitmq_mqtt.rabbit.tcp_listen_options",
+{translation, "rabbitmq_jt808.rabbit.tcp_listen_options",
 fun(Conf) ->
     case cuttlefish:conf_get("mqtt.tcp_listen_options") of
         none -> [];
@@ -180,72 +180,72 @@ fun(Conf) ->
     end
 end}.
 
-{mapping, "mqtt.tcp_listen_options.backlog", "rabbitmq_mqtt.tcp_listen_options.backlog", [
+{mapping, "mqtt.tcp_listen_options.backlog", "rabbitmq_jt808.tcp_listen_options.backlog", [
     {datatype, integer}
 ]}.
 
-{mapping, "mqtt.tcp_listen_options.nodelay", "rabbitmq_mqtt.tcp_listen_options.nodelay", [
+{mapping, "mqtt.tcp_listen_options.nodelay", "rabbitmq_jt808.tcp_listen_options.nodelay", [
     {datatype, {enum, [true, false]}}
 ]}.
 
-{mapping, "mqtt.tcp_listen_options.buffer", "rabbitmq_mqtt.tcp_listen_options.buffer",
+{mapping, "mqtt.tcp_listen_options.buffer", "rabbitmq_jt808.tcp_listen_options.buffer",
     [{datatype, integer}]}.
 
-{mapping, "mqtt.tcp_listen_options.delay_send", "rabbitmq_mqtt.tcp_listen_options.delay_send",
+{mapping, "mqtt.tcp_listen_options.delay_send", "rabbitmq_jt808.tcp_listen_options.delay_send",
     [{datatype, {enum, [true, false]}}]}.
 
-{mapping, "mqtt.tcp_listen_options.dontroute", "rabbitmq_mqtt.tcp_listen_options.dontroute",
+{mapping, "mqtt.tcp_listen_options.dontroute", "rabbitmq_jt808.tcp_listen_options.dontroute",
     [{datatype, {enum, [true, false]}}]}.
 
-{mapping, "mqtt.tcp_listen_options.exit_on_close", "rabbitmq_mqtt.tcp_listen_options.exit_on_close",
+{mapping, "mqtt.tcp_listen_options.exit_on_close", "rabbitmq_jt808.tcp_listen_options.exit_on_close",
     [{datatype, {enum, [true, false]}}]}.
 
-{mapping, "mqtt.tcp_listen_options.fd", "rabbitmq_mqtt.tcp_listen_options.fd",
+{mapping, "mqtt.tcp_listen_options.fd", "rabbitmq_jt808.tcp_listen_options.fd",
     [{datatype, integer}]}.
 
-{mapping, "mqtt.tcp_listen_options.high_msgq_watermark", "rabbitmq_mqtt.tcp_listen_options.high_msgq_watermark",
+{mapping, "mqtt.tcp_listen_options.high_msgq_watermark", "rabbitmq_jt808.tcp_listen_options.high_msgq_watermark",
     [{datatype, integer}]}.
 
-{mapping, "mqtt.tcp_listen_options.high_watermark", "rabbitmq_mqtt.tcp_listen_options.high_watermark",
+{mapping, "mqtt.tcp_listen_options.high_watermark", "rabbitmq_jt808.tcp_listen_options.high_watermark",
     [{datatype, integer}]}.
 
-{mapping, "mqtt.tcp_listen_options.keepalive", "rabbitmq_mqtt.tcp_listen_options.keepalive",
+{mapping, "mqtt.tcp_listen_options.keepalive", "rabbitmq_jt808.tcp_listen_options.keepalive",
     [{datatype, {enum, [true, false]}}]}.
 
-{mapping, "mqtt.tcp_listen_options.low_msgq_watermark", "rabbitmq_mqtt.tcp_listen_options.low_msgq_watermark",
+{mapping, "mqtt.tcp_listen_options.low_msgq_watermark", "rabbitmq_jt808.tcp_listen_options.low_msgq_watermark",
     [{datatype, integer}]}.
 
-{mapping, "mqtt.tcp_listen_options.low_watermark", "rabbitmq_mqtt.tcp_listen_options.low_watermark",
+{mapping, "mqtt.tcp_listen_options.low_watermark", "rabbitmq_jt808.tcp_listen_options.low_watermark",
     [{datatype, integer}]}.
 
-{mapping, "mqtt.tcp_listen_options.port", "rabbitmq_mqtt.tcp_listen_options.port",
+{mapping, "mqtt.tcp_listen_options.port", "rabbitmq_jt808.tcp_listen_options.port",
     [{datatype, integer}, {validators, ["port"]}]}.
 
-{mapping, "mqtt.tcp_listen_options.priority", "rabbitmq_mqtt.tcp_listen_options.priority",
+{mapping, "mqtt.tcp_listen_options.priority", "rabbitmq_jt808.tcp_listen_options.priority",
     [{datatype, integer}]}.
 
-{mapping, "mqtt.tcp_listen_options.recbuf", "rabbitmq_mqtt.tcp_listen_options.recbuf",
+{mapping, "mqtt.tcp_listen_options.recbuf", "rabbitmq_jt808.tcp_listen_options.recbuf",
     [{datatype, integer}]}.
 
-{mapping, "mqtt.tcp_listen_options.send_timeout", "rabbitmq_mqtt.tcp_listen_options.send_timeout",
+{mapping, "mqtt.tcp_listen_options.send_timeout", "rabbitmq_jt808.tcp_listen_options.send_timeout",
     [{datatype, integer}]}.
 
-{mapping, "mqtt.tcp_listen_options.send_timeout_close", "rabbitmq_mqtt.tcp_listen_options.send_timeout_close",
+{mapping, "mqtt.tcp_listen_options.send_timeout_close", "rabbitmq_jt808.tcp_listen_options.send_timeout_close",
     [{datatype, {enum, [true, false]}}]}.
 
-{mapping, "mqtt.tcp_listen_options.sndbuf", "rabbitmq_mqtt.tcp_listen_options.sndbuf",
+{mapping, "mqtt.tcp_listen_options.sndbuf", "rabbitmq_jt808.tcp_listen_options.sndbuf",
     [{datatype, integer}]}.
 
-{mapping, "mqtt.tcp_listen_options.tos", "rabbitmq_mqtt.tcp_listen_options.tos",
+{mapping, "mqtt.tcp_listen_options.tos", "rabbitmq_jt808.tcp_listen_options.tos",
     [{datatype, integer}]}.
 
-{mapping, "mqtt.tcp_listen_options.linger.on", "rabbitmq_mqtt.tcp_listen_options.linger",
+{mapping, "mqtt.tcp_listen_options.linger.on", "rabbitmq_jt808.tcp_listen_options.linger",
     [{datatype, {enum, [true, false]}}]}.
 
-{mapping, "mqtt.tcp_listen_options.linger.timeout", "rabbitmq_mqtt.tcp_listen_options.linger",
+{mapping, "mqtt.tcp_listen_options.linger.timeout", "rabbitmq_jt808.tcp_listen_options.linger",
     [{datatype, integer}, {validators, ["non_negative_integer"]}]}.
 
-{translation, "rabbitmq_mqtt.tcp_listen_options.linger",
+{translation, "rabbitmq_jt808.tcp_listen_options.linger",
 fun(Conf) ->
     LingerOn = cuttlefish:conf_get("mqtt.tcp_listen_options.linger.on", Conf, false),
     LingerTimeout = cuttlefish:conf_get("mqtt.tcp_listen_options.linger.timeout", Conf, 0),

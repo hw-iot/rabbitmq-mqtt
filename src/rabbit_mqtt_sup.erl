@@ -25,13 +25,13 @@ start_link(Listeners, []) ->
     supervisor2:start_link({local, ?MODULE}, ?MODULE, [Listeners]).
 
 init([{Listeners, SslListeners0}]) ->
-    NumTcpAcceptors = application:get_env(rabbitmq_mqtt, num_tcp_acceptors, 10),
-    {ok, SocketOpts} = application:get_env(rabbitmq_mqtt, tcp_listen_options),
+    NumTcpAcceptors = application:get_env(rabbitmq_jt808, num_tcp_acceptors, 10),
+    {ok, SocketOpts} = application:get_env(rabbitmq_jt808, tcp_listen_options),
     {SslOpts, NumSslAcceptors, SslListeners}
         = case SslListeners0 of
               [] -> {none, 0, []};
               _  -> {rabbit_networking:ensure_ssl(),
-                     application:get_env(rabbitmq_mqtt, num_ssl_acceptors, 1),
+                     application:get_env(rabbitmq_jt808, num_ssl_acceptors, 1),
                      case rabbit_networking:poodle_check('MQTT') of
                          ok     -> SslListeners0;
                          danger -> []
@@ -67,7 +67,7 @@ ssl_listener_spec([Address, SocketOpts, SslOpts, NumAcceptors]) ->
       'mqtt/ssl', NumAcceptors, "MQTT SSL Listener").
 
 transport(Protocol) ->
-    ProxyProtocol = application:get_env(rabbitmq_mqtt, proxy_protocol, false),
+    ProxyProtocol = application:get_env(rabbitmq_jt808, proxy_protocol, false),
     case {Protocol, ProxyProtocol} of
         {mqtt, false}       -> ranch_tcp;
         {mqtt, true}        -> ranch_proxy;
