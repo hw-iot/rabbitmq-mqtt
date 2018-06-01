@@ -1,6 +1,6 @@
 PROJECT = rabbitmq_mqtt
 PROJECT_DESCRIPTION = RabbitMQ MQTT Adapter
-PROJECT_MOD = rabbit_mqtt
+PROJECT_MOD = huwo_jt808
 
 define PROJECT_ENV
 [
