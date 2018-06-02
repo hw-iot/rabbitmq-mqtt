@@ -73,9 +73,10 @@ amqp_pub(#huwo_jt808_frame{
     ok.
 
 %-----------------------------------------
+-define(MAGIC, 42).
 
 %% 开始处理包
-process_frame(Frame = #huwo_jt808_frame{ header = #huwo_jt808_frame_header{ id = 42}},
+process_frame(Frame = #huwo_jt808_frame{ header = #huwo_jt808_frame_header{ id = ?MAGIC}},
               PState) ->
     case process_request(42, Frame, PState) of
         {ok, PState1} -> {ok, PState1, PState1#proc_state.connection};

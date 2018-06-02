@@ -56,6 +56,8 @@ serialise(#huwo_jt808_frame{
              Checksum:1/binary>>,
     <<?FLAG_BOUNDARY, (escape(Body))/binary, ?FLAG_BOUNDARY>>.
 
+
+
 %% internal
 parse_content(Frame, Flag) ->
     parse_content(Frame, Flag, <<>>).
