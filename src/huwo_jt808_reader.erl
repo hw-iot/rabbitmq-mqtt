@@ -147,9 +147,10 @@ handle_info({inet_async, Sock, _Ref, {ok, Data}},
             State = #state{ socket = Sock, connection_state = blocked }) ->
     {noreply, State#state{ deferred_recv = Data }, hibernate};
 
+
+%%% 主调用进入点!!!!!!!!!!!!!
 handle_info({inet_async, Sock, _Ref, {ok, Data}},
             State = #state{ socket = Sock, connection_state = running }) ->
-    % TODO: 主调用???
     process_received_bytes(
       Data, control_throttle(State #state{ await_recv = false }));
 
@@ -159,15 +160,13 @@ handle_info({inet_async, _Sock, _Ref, {error, Reason}}, State = #state {}) ->
 handle_info({inet_reply, _Sock, {error, Reason}}, State = #state {}) ->
     network_error(Reason, State);
 
+%% 流量控制的时候延迟处理超出流量阀值的数据
 handle_info({conserve_resources, Conserve}, State) ->
-    % TODO: ??? 什么意思
     maybe_process_deferred_recv(
       control_throttle(State #state{ conserve = Conserve }));
-
+%% TODO: 验证碰撞???
 handle_info({bump_credit, Msg}, State) ->
-    % TODO: ??? 什么意思
     credit_flow:handle_bump_msg(Msg),
-    % TODO: ??? 没搞明白
     maybe_process_deferred_recv(control_throttle(State));
 
 handle_info({start_keepalives, Keepalive},
@@ -381,6 +380,7 @@ run_socket(State = #state{ socket = Sock }) ->
 
 
 % control_throttle()
+% 空流函数
 
 control_throttle(State = #state{ connection_state = Flow,
                                  conserve         = Conserve }) ->
