@@ -47,11 +47,15 @@ test_send_package() ->
     %% bin_utils:dump(response, jt808_send(Package)),
     ok.
 
+-define(PARSE_STRING0(Payload, Key, Rest), [Key, Rest] = binary:split(Payload, [<<0,0>>])).
+-define(PARSE_INT8(Payload, Key, Rest), << Key:8, Rest/binary >> = Payload).
+
+
 test_serialise_connect_frame()->
     Frame = huwo_jt808_frame:serialise(
               #huwo_jt808_frame_connect{
-                 mobile = "1389607952700",
-                 app = "huwo-erlang-jt808-client",
+		 mobile = "13896079527",
+		 client_name = "huwo-erlang-jt808-client",
                  username = "user",
                  password = "pass",
                  client_type = 0,
@@ -61,14 +65,40 @@ test_serialise_connect_frame()->
                  work_mode = 1
                 }),
     bin_utils:dump(frame, Frame),
+
+    %% parse connect frame
     {ok, PackageParsed} = huwo_jt808_frame:parse(Frame),
-    huwo_jt808_frame:dump(PackageParsed).
+    huwo_jt808_frame:dump(PackageParsed),
+    Payload = PackageParsed#huwo_jt808_frame.payload,
+    bin_utils:dump(payload, Payload),
+
+    ?PARSE_STRING0(Payload,  Mobile,      Rest1),
+    ?PARSE_STRING0(Rest1,    ClientName,  Rest2),
+    ?PARSE_STRING0(Rest2,    Username,    Rest3),
+    ?PARSE_STRING0(Rest3,    Password,    Rest4),
+    ?PARSE_INT8   (Rest4,    ClientType,  Rest5),
+    ?PARSE_STRING0(Rest5,    PhoneModel,  Rest6),
+    ?PARSE_STRING0(Rest6,    ProtoVer,    Rest7),
+    ?PARSE_INT8   (Rest7,    WorkMode,    Rest8),
+    Record = #huwo_jt808_frame_connect{
+		mobile = Mobile,
+		client_name = ClientName,
+		username = Username,
+		password = Password,
+		client_type = ClientType,
+		phone_model = PhoneModel,
+		proto_ver = ProtoVer,
+		%% phone_os = PhoneOS,
+		work_mode = WorkMode
+	       },
+    bin_utils:dump(record, Record),
+    ok.
 
 test_parse_connect_frame()->
     Sep = <<0,0>>,
     Mobile = <<"13896079527">>,
-    App = <<"huwo-erlang-jt808-client">>,
-    Data = << Mobile/binary, Sep/binary, App/binary, Sep/binary >>,
+    Client_Name = <<"huwo-erlang-jt808-client">>,
+    Data = << Mobile/binary, Sep/binary, Client_Name/binary, Sep/binary >>,
 
     bin_utils:dump(str, Data),
 

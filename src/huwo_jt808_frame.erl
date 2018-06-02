@@ -46,7 +46,7 @@ serialise(SN, Id, Payload)->
 
 serialise(#huwo_jt808_frame_connect{
              mobile = Mobile,
-             app = App,
+	     client_name = ClientName,
              username = Username,
              password = Password,
              client_type = ClientType,
@@ -56,7 +56,7 @@ serialise(#huwo_jt808_frame_connect{
              work_mode = WorkMode
             }) ->
     Payload = << ?STRING0(Mobile),
-                 ?STRING0(App), ?STRING0(Username), ?STRING0(Password), ClientType:8,
+		 ?STRING0(ClientName), ?STRING0(Username), ?STRING0(Password), ClientType:8,
                  ?STRING0(PhoneModel), ?STRING0([ ProtoVer | PhoneOS ]),
                  WorkMode:8 >>,
     serialise(1, ?CONNECT, Payload);

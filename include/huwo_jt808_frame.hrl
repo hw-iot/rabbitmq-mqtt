@@ -39,7 +39,7 @@
 
 -record(huwo_jt808_frame_connect,
         { mobile,
-          app,
+	  client_name,
           username,
           password,
           client_type,
