@@ -10,15 +10,15 @@
         ]).
 
 -include_lib("amqp_client/include/amqp_client.hrl").
-%-include("rabbit_mqtt_frame.hrl").
+%%-include("rabbit_mqtt_frame.hrl").
 -include("rabbit_mqtt.hrl").
 -include("include/huwo_jt808_frame.hrl").
 
 initial_state(Socket, SSLLoginName) ->
     RealSocket = rabbit_net:unwrap_socket(Socket),
     initial_state(RealSocket, SSLLoginName,
-        adapter_info(Socket, 'MQTT'),
-        fun send_client/2).
+		  adapter_info(Socket, 'MQTT'),
+		  fun send_client/2).
 
 initial_state(Socket, SSLLoginName,
               AdapterInfo0 = #amqp_adapter_info{additional_info = Extra},
@@ -26,11 +26,11 @@ initial_state(Socket, SSLLoginName,
     %% JT808 connections use exactly one channel. The frame max is not
     %% applicable and there is no way to know what client is used.
     AdapterInfo = AdapterInfo0#amqp_adapter_info{additional_info = [
-        {channels, 1},
-        {channel_max, 1},
-        {frame_max, 0},
-        {client_properties,
-         [{<<"product">>, longstr, <<"JT808 client">>}]} | Extra]},
+								    {channels, 1},
+								    {channel_max, 1},
+								    {frame_max, 0},
+								    {client_properties,
+								     [{<<"product">>, longstr, <<"JT808 client">>}]} | Extra]},
     #proc_state{ unacked_pubs   = gb_trees:empty(),
                  awaiting_ack   = gb_trees:empty(),
                  message_id     = 1,
@@ -44,12 +44,12 @@ initial_state(Socket, SSLLoginName,
                  send_fun       = SendFun }.
 
 
-%-----------------------------------------------------------------------
+%%-----------------------------------------------------------------------
 
-% amqp_pub()
+%% amqp_pub()
 
 %% 自定义的amqp_pub
-% TODO: 用系统的替换
+%% TODO: 用系统的替换
 amqp_pub(#huwo_jt808_frame{
             payload = Payload
            }) ->
@@ -72,31 +72,67 @@ amqp_pub(#huwo_jt808_frame{
     ok = amqp_connection:close(Connection),
     ok.
 
-%-----------------------------------------
+%%-----------------------------------------
 -define(MAGIC, 42).
 
 %% 开始处理包
+%% debug hello package
 process_frame(Frame = #huwo_jt808_frame{ header = #huwo_jt808_frame_header{ id = ?MAGIC}},
               PState) ->
     case process_request(42, Frame, PState) of
         {ok, PState1} -> {ok, PState1, PState1#proc_state.connection};
         Ret -> Ret
     end;
-%% 如果不是注册设备的消息，但状态中的connection没定义说明没有注册就发送其他信息
-process_frame(#huwo_jt808_frame{ header = #huwo_jt808_frame_header{ id = MsgId}},
-              PState = #proc_state{ connection = undefined }) %%
-            when MsgId =/= ?MSG_ID_REG ->
-                {error, connect_expected, PState}.
+%% 消息头已解析，可以取得消息类型MsgID。消息体 Payload 为二进制，待进一步解析
+process_frame(#huwo_jt808_frame{
+		 header = #huwo_jt808_frame_header{
+			     id = MsgID}} = Frame, PState) ->
+    bin_utils:dump(process_frame_frame, Frame),
+    case process_request(MsgID, Frame, PState) of
+	{ok, PState1} -> {ok, PState1, PState1#proc_state.connection};
+	Ret -> Ret
+    end.
 
-process_request(?MSG_ID_REG,
-                Frame,
-                PState0 = #proc_state{ ssl_login_name = _SSLLoginName,
-                                       send_fun       = _SendFun,
-                                       adapter_info   = _AdapterInfo = #amqp_adapter_info{additional_info = _Extra} }) ->
-    % TODO: 验证登录
-    % TODO: 给当前用户开推送队列，用于服务端推送
-    bin_utils:dump(process_request, Frame),
+
+%% 如果不是注册设备的消息，但状态中的connection没定义说明没有注册就发送其他信息
+%% process_frame(#huwo_jt808_frame{ header = #huwo_jt808_frame_header{ id = MsgId}},
+%%               PState = #proc_state{ connection = undefined }) %%
+%%             when MsgId =/= ?MSG_ID_REG ->
+%%                 {error, connect_expected, PState}.
+
+process_request(?CONNECT,
+		#huwo_jt808_frame{ payload = Payload},
+		PState0) ->
+    ?PARSE_STRING0(Payload,  Mobile,      Rest1),
+    ?PARSE_STRING0(Rest1,    ClientName,  Rest2),
+    ?PARSE_STRING0(Rest2,    Username,    Rest3),
+    ?PARSE_STRING0(Rest3,    Password,    Rest4),
+    ?PARSE_UINT8  (Rest4,    ClientType,  Rest5),
+    ?PARSE_STRING0(Rest5,    PhoneModel,  Rest6),
+    ?PARSE_STRING0(Rest6,    ProtoVer,    Rest7),
+    ?PARSE_UINT8  (Rest7,    WorkMode,    _Rest8),
+    Request = #huwo_jt808_frame_connect{
+		 mobile = Mobile,
+		 client_name = ClientName,
+		 username = Username,
+		 password = Password,
+		 client_type = ClientType,
+		 phone_model = PhoneModel,
+		 proto_ver = ProtoVer,
+		 phone_os = ProtoVer,
+		 work_mode = WorkMode},
+    bin_utils:dump(process_connect_request, Request),
     {ok, PState0};
+
+%% process_request(?MSG_ID_REG,
+%%                 Frame,
+%%                 PState0 = #proc_state{ ssl_login_name = _SSLLoginName,
+%%                                        send_fun       = _SendFun,
+%%                                        adapter_info   = _AdapterInfo = #amqp_adapter_info{additional_info = _Extra} }) ->
+%% %% TODO: 验证登录
+%% %% TODO: 给当前用户开推送队列，用于服务端推送
+%%     bin_utils:dump(process_request, Frame),
+%%     {ok, PState0};
 
 process_request(_MessageType,
                 _Frame,
@@ -126,25 +162,25 @@ send_client(Frame, #proc_state{ socket = Sock }) ->
 
 
 %%---------------------------------------------------------------------
-% sys
+%% sys
 
 hand_off_to_retainer(RetainerPid, Topic, #huwo_jt808_msg{payload = <<"">>}) ->
-  % TODO: retainer支持
-  rabbit_mqtt_retainer:clear(RetainerPid, Topic),
-  ok;
+    %% TODO: retainer支持
+    rabbit_mqtt_retainer:clear(RetainerPid, Topic),
+    ok;
 hand_off_to_retainer(RetainerPid, Topic, Msg) ->
-  % TODO: retainer支持
-  rabbit_mqtt_retainer:retain(RetainerPid, Topic, Msg),
-  ok.
+    %% TODO: retainer支持
+    rabbit_mqtt_retainer:retain(RetainerPid, Topic, Msg),
+    ok.
 
-% send_will()
+%% send_will()
 
 send_will(PState = #proc_state{will_msg = undefined}) ->
     PState;
 
-% TODO: huwo_jt808_msg的内容有什么用途需要研究
+%% TODO: huwo_jt808_msg的内容有什么用途需要研究
 send_will(PState = #proc_state{will_msg = WillMsg = #huwo_jt808_msg{retain = Retain,
-                                                              topic = Topic},
+								    topic = Topic},
                                retainer_pid = RPid,
                                channels = {ChQos0, ChQos1}}) ->
     case check_topic_access(Topic, write, PState) of
@@ -156,8 +192,8 @@ send_will(PState = #proc_state{will_msg = WillMsg = #huwo_jt808_msg{retain = Ret
             end;
         Error  ->
             rabbit_log:warning(
-                "Could not send last will: ~p~n",
-                [Error])
+	      "Could not send last will: ~p~n",
+	      [Error])
     end,
     case ChQos1 of
         undefined -> ok;
@@ -173,8 +209,7 @@ send_will(PState = #proc_state{will_msg = WillMsg = #huwo_jt808_msg{retain = Ret
 delivery_mode(?QOS_0) -> 1;
 delivery_mode(?QOS_1) -> 2.
 
-% amqp_pub
-
+%% amqp_pub
 
 amqp_pub(undefined, PState) ->
     PState;
@@ -192,10 +227,10 @@ amqp_pub(Msg   = #huwo_jt808_msg{ qos = ?QOS_1 },
                                       awaiting_seqno = 1 });
 
 amqp_pub(#huwo_jt808_msg{ qos        = Qos,
-                    topic      = Topic,
-                    dup        = Dup,
-                    message_id = MessageId,
-                    payload    = Payload },
+			  topic      = Topic,
+			  dup        = Dup,
+			  message_id = MessageId,
+			  payload    = Payload },
          PState = #proc_state{ channels       = {ChQos0, ChQos1},
                                exchange       = Exchange,
                                unacked_pubs   = UnackedPubs,
@@ -342,10 +377,10 @@ close_connection(PState = #proc_state{ connection = undefined }) ->
     PState;
 close_connection(PState = #proc_state{ connection = Connection,
                                        client_id  = ClientId }) ->
-    % todo: maybe clean session
+    %% todo: maybe clean session
     case ClientId of
         undefined -> ok;
-                   % TODO: ??? 需要解除MQTT依赖
+	%% TODO: ??? 需要解除MQTT依赖
         _         -> ok = rabbit_mqtt_collector:unregister(ClientId, self())
     end,
     %% ignore noproc or other exceptions to avoid debris
@@ -357,35 +392,35 @@ close_connection(PState = #proc_state{ connection = Connection,
 
 check_topic_access(TopicName, Access,
                    #proc_state{
-                        auth_state = #auth_state{user = User = #user{username = Username},
-                                                 vhost = VHost},
-                        exchange = Exchange,
-                        client_id = ClientId}) ->
-  Resource = #resource{virtual_host = VHost,
-                       kind = topic,
-                       name = Exchange},
-  % TODO: mqtt转amqp
-  Context = #{routing_key  => rabbit_mqtt_util:mqtt2amqp(TopicName),
-              variable_map => #{
-                  <<"username">>  => Username,
-                  <<"vhost">>     => VHost,
-                  <<"client_id">> => rabbit_data_coercion:to_binary(ClientId)
-              }
-  },
+		      auth_state = #auth_state{user = User = #user{username = Username},
+					       vhost = VHost},
+		      exchange = Exchange,
+		      client_id = ClientId}) ->
+    Resource = #resource{virtual_host = VHost,
+			 kind = topic,
+			 name = Exchange},
+						% TODO: mqtt转amqp
+    Context = #{routing_key  => rabbit_mqtt_util:mqtt2amqp(TopicName),
+		variable_map => #{
+				  <<"username">>  => Username,
+				  <<"vhost">>     => VHost,
+				  <<"client_id">> => rabbit_data_coercion:to_binary(ClientId)
+				 }
+	       },
 
-  try rabbit_access_control:check_topic_access(User, Resource, Access, Context) of
-    R -> R
-  catch
-    _:{amqp_error, access_refused, Msg, _} ->
-      rabbit_log:error("operation resulted in an error (access_refused): ~p~n", [Msg]),
-        {error, access_refused};
-    _:Error ->
-      rabbit_log:error("~p~n", [Error]),
-        {error, access_refused}
-  end.
+    try rabbit_access_control:check_topic_access(User, Resource, Access, Context) of
+	R -> R
+    catch
+	_:{amqp_error, access_refused, Msg, _} ->
+	    rabbit_log:error("operation resulted in an error (access_refused): ~p~n", [Msg]),
+	    {error, access_refused};
+	_:Error ->
+	    rabbit_log:error("~p~n", [Error]),
+	    {error, access_refused}
+    end.
 
-% info()
-% 返回进程状态的指定值
+%% info()
+%% 返回进程状态的指定值
 
 info(consumer_tags, #proc_state{consumer_tags = Val}) -> Val;
 info(unacked_pubs, #proc_state{unacked_pubs = Val}) -> Val;
@@ -426,8 +461,8 @@ info(Other, _) -> throw({bad_argument, Other}).
 
 additional_info(Key,
                 #proc_state{adapter_info =
-                            #amqp_adapter_info{additional_info = AddInfo}}) ->
+				#amqp_adapter_info{additional_info = AddInfo}}) ->
     proplists:get_value(Key, AddInfo).
 
 %%---------------------------------------------------------------------
-% private
+%% private

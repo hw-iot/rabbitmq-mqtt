@@ -18,7 +18,9 @@ parse(Package, _) ->
     parse(Package).
 
 parse(Package) ->
+    bin_utils:dump(frame_parse_package, Package),
     Content = parse_content(Package, ?FLAG_BOUNDARY),
+    bin_utils:dump(frame_parse_content, Content),
     <<Id:16, Property:2/binary, Timestamp:6/binary, SN:16, Rest/binary>> = Content,
     <<Aes:1, Zip:1, Divide:1, Len:13>> = Property,
     <<Payload:Len/binary, _:8>> = Rest,
