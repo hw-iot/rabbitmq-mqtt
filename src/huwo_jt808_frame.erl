@@ -33,33 +33,23 @@ parse(Package) ->
                          sn        = SN},
             payload = Payload}}.
 
-
-serialise(SN, Id, Payload)->
-    Header = #huwo_jt808_frame_header{
-                id = Id,
-                timestamp = 201806011200,
-                sn = SN
-               },
-    serialise(#huwo_jt808_frame{
-                 header = Header,
-                 payload = Payload}).
-
-serialise(#huwo_jt808_frame_connect{
-             mobile = Mobile,
-	     client_name = ClientName,
-             username = Username,
-             password = Password,
-             client_type = ClientType,
-             phone_model = PhoneModel,
-             proto_ver = ProtoVer,
-             phone_os = PhoneOS,
-             work_mode = WorkMode
-            }) ->
-    Payload = << ?STRING0(Mobile),
-		 ?STRING0(ClientName), ?STRING0(Username), ?STRING0(Password), ClientType:8,
-                 ?STRING0(PhoneModel), ?STRING0([ ProtoVer | PhoneOS ]),
-                 WorkMode:8 >>,
-    serialise(1, ?CONNECT, Payload);
+serialise(#huwo_jt808_frame{
+             payload = #huwo_jt808_frame_connect{
+                          mobile = Mobile,
+                          client_name = ClientName,
+                          username = Username,
+                          password = Password,
+                          client_type = ClientType,
+                          phone_model = PhoneModel,
+                          proto_ver = ProtoVer,
+                          phone_os = PhoneOS,
+                          work_mode = WorkMode
+                         }} = Request) ->
+    Payload = <<?STRING0(Mobile),
+                ?STRING0(ClientName), ?STRING0(Username), ?STRING0(Password), ClientType:8,
+                ?STRING0(PhoneModel), ?STRING0([ ProtoVer | PhoneOS ]),
+                WorkMode:8>>,
+    serialise(?FRAME(?CONNECT, Request, Payload));
 
 serialise(#huwo_jt808_frame{
              header = #huwo_jt808_frame_header{
@@ -82,7 +72,6 @@ serialise(#huwo_jt808_frame{
              SN:16,
              Payload:Len/binary,
              Checksum:1/binary>>,
-    bin_utils:dump(body, Body),
     <<?FLAG_BOUNDARY, (escape(Body))/binary, ?FLAG_BOUNDARY>>.
 
 

@@ -6,6 +6,8 @@
 
 -define(SEP, <<0,0>>).
 -define(STRING0(Val), (list_to_binary(Val))/binary, ?SEP/binary).
+-define(PARSE_STRING0(Payload, Key, Rest), [Key, Rest] = binary:split(Payload, [<<0,0>>])).
+-define(PARSE_UINT8(Payload, Key, Rest), << Key:8, Rest/binary >> = Payload).
 
 
 -define(CONNECT,    16#0103).
@@ -16,6 +18,19 @@
 -define(HEARTBEAT,  16#0105).
 -define(GPSV1,      16#0203).
 -define(GPSV2,      16#0205).
+
+-define(NEW_FRAME(Payload, SN),
+        #huwo_jt808_frame{
+           header = #huwo_jt808_frame_header{
+                       sn = SN,
+                       timestamp = 201805141800},
+           payload = Payload}).
+
+-define(FRAME(ID, Frame, Payload),
+        #huwo_jt808_frame{
+           header = Frame#huwo_jt808_frame.header#huwo_jt808_frame_header{
+                                             id = ID},
+           payload = Payload}).
 
 -define(QOS_0, 0).
 -define(QOS_1, 1).
@@ -38,8 +53,9 @@
           sn }).
 
 -record(huwo_jt808_frame_connect,
-        { mobile,
-	  client_name,
+        { client_id,
+          mobile,
+          client_name,
           username,
           password,
           client_type,
