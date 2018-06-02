@@ -4,6 +4,10 @@
 
 -define(MSG_ID_REG,16#0103).
 
+-define(SEP, <<0,0>>).
+-define(STRING0(Val), (list_to_binary(Val))/binary, ?SEP/binary).
+
+
 -define(CONNECT,    16#0103).
 -define(DISCONNECT, 16#0108).
 -define(CLIENTACK,  16#0001).
@@ -24,25 +28,25 @@
 
 -record(huwo_jt808_frame, {header, payload}).
 
--record( huwo_jt808_frame_header,
-         { id,
-           aes     = 0,
-           zip     = 0,
-           divide  = 0,
-           length,
-           timestamp,
-           sn }).
+-record(huwo_jt808_frame_header,
+        { id,
+          aes     = 0,
+          zip     = 0,
+          divide  = 0,
+          length,
+          timestamp,
+          sn }).
 
--record( huwo_jt808_frame_connect,
-         { mobile,
-           app,
-           username,
-           password,
-           client_type,
-           phone,
-           proto_ver,
-           phone_os,
-           work_mode = 0 }).
+-record(huwo_jt808_frame_connect,
+        { mobile,
+          app,
+          username,
+          password,
+          client_type,
+          phone_model,
+          proto_ver,
+          phone_os,
+          work_mode = 0 }).
 
 %% TODO: 需要研究消息内容对JT808协议是否有用途，如何修改
 -record(huwo_jt808_msg,       {retain :: boolean(),

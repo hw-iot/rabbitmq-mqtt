@@ -33,6 +33,34 @@ parse(Package) ->
                          sn        = SN},
             payload = Payload}}.
 
+
+serialise(SN, Id, Payload)->
+    Header = #huwo_jt808_frame_header{
+                id = Id,
+                timestamp = 201806011200,
+                sn = SN
+               },
+    serialise(#huwo_jt808_frame{
+                 header = Header,
+                 payload = Payload}).
+
+serialise(#huwo_jt808_frame_connect{
+             mobile = Mobile,
+             app = App,
+             username = Username,
+             password = Password,
+             client_type = ClientType,
+             phone_model = PhoneModel,
+             proto_ver = ProtoVer,
+             phone_os = PhoneOS,
+             work_mode = WorkMode
+            }) ->
+    Payload = << ?STRING0(Mobile),
+                 ?STRING0(App), ?STRING0(Username), ?STRING0(Password), ClientType:8,
+                 ?STRING0(PhoneModel), ?STRING0([ ProtoVer | PhoneOS ]),
+                 WorkMode:8 >>,
+    serialise(1, ?CONNECT, Payload);
+
 serialise(#huwo_jt808_frame{
              header = #huwo_jt808_frame_header{
                          id = Id,
@@ -54,8 +82,8 @@ serialise(#huwo_jt808_frame{
              SN:16,
              Payload:Len/binary,
              Checksum:1/binary>>,
+    bin_utils:dump(body, Body),
     <<?FLAG_BOUNDARY, (escape(Body))/binary, ?FLAG_BOUNDARY>>.
-
 
 
 %% internal
@@ -93,15 +121,15 @@ checksum(<<>>, Acc) ->            <<Acc>>.
 
 %% debug
 dump(#huwo_jt808_frame{
-              header = #huwo_jt808_frame_header{
-                          id        = Id,
-                          aes       = Aes,
-                          zip       = Zip,
-                          divide    = Divide,
-                          length    = Len,
-                          timestamp = Timestamp,
-                          sn        = SN},
-              payload = Payload}) ->
+        header = #huwo_jt808_frame_header{
+                    id        = Id,
+                    aes       = Aes,
+                    zip       = Zip,
+                    divide    = Divide,
+                    length    = Len,
+                    timestamp = Timestamp,
+                    sn        = SN},
+        payload = Payload}) ->
     bin_utils:dump(property, [Id, Aes, Zip, Divide, Len]),
     bin_utils:dump(timestamp, Timestamp),
     bin_utils:dump(sn, SN),
