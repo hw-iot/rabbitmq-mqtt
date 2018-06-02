@@ -46,11 +46,11 @@ emit_connection_info_all(Nodes, Items, Ref, AggregatorPid) ->
 emit_connection_info_local(Items, Ref, AggregatorPid) ->
     rabbit_control_misc:emitting_map_with_exit_handler(
         AggregatorPid, Ref, fun({_, {Pid, _}}) ->
-            rabbit_mqtt_reader:info(Pid, Items)
+            huwo_jt808_reader:info(Pid, Items)
         end,
         rabbit_mqtt_collector:list()).
 
 connection_info_local(Items) ->
     Connections = rabbit_mqtt_collector:list(),
-    [rabbit_mqtt_reader:info(Pid, Items)
+    [huwo_jt808_reader:info(Pid, Items)
      || {_, {Pid, _}} <- Connections].
