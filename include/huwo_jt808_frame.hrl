@@ -73,3 +73,19 @@
                                payload :: binary()}).
 
 -type huwo_jt808_msg() :: #huwo_jt808_msg{}.
+
+
+%--------------------------------------------------------
+% 为了开发时兼容原mqtt协议的部分代码
+% TODO: 完全替换为jt808需要去掉此部分
+
+-record(mqtt_frame, {fixed,
+                     variable,
+                     payload}).
+
+-record(mqtt_frame_fixed,    {type   = 0,
+                              dup    = 0,
+                              qos    = 0,
+                              retain = 0}).
+-record(mqtt_frame_publish,  {topic_name,
+                              message_id}).

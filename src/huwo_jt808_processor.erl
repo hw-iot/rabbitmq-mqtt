@@ -2,7 +2,7 @@
 
 
 -export([info/2, initial_state/2, initial_state/4]).
--export([send_will/1]).
+-export([amqp_callback/2, send_will/1]).
 -export([
          process_frame/2,
          send_client/2,
@@ -219,6 +219,121 @@ amqp_pub(#huwo_jt808_msg{ qos        = Qos,
                         awaiting_seqno = SeqNo1 }.
 
 
+% amqp_callback
+% TODO: 从mqtt frame 提取的，mqtt的消息类型，换为JT808后要去掉
+-define(PUBLISH,      3).
+-define(PUBACK,       4).
+amqp_callback({#'basic.deliver'{ consumer_tag = ConsumerTag,
+                                 delivery_tag = DeliveryTag,
+                                 routing_key  = RoutingKey },
+               #amqp_msg{ props = #'P_basic'{ headers = Headers },
+                          payload = Payload },
+               DeliveryCtx} = Delivery,
+              #proc_state{ channels      = {Channel, _},
+                           awaiting_ack  = Awaiting,
+                           message_id    = MsgId,
+                           send_fun      = SendFun } = PState) ->
+    amqp_channel:notify_received(DeliveryCtx),
+    case {delivery_dup(Delivery), delivery_qos(ConsumerTag, Headers, PState)} of
+        {true, {?QOS_0, ?QOS_1}} ->
+            amqp_channel:cast(
+              Channel, #'basic.ack'{ delivery_tag = DeliveryTag }),
+            {ok, PState};
+        {true, {?QOS_0, ?QOS_0}} ->
+            {ok, PState};
+        {Dup, {DeliveryQos, _SubQos} = Qos}     ->
+            SendFun(
+                % TODO: 替换为JT808报文
+              #mqtt_frame{ fixed = #mqtt_frame_fixed{
+                                     type = ?PUBLISH,
+                                     qos  = DeliveryQos,
+                                     dup  = Dup },
+                           variable = #mqtt_frame_publish{
+                                        message_id =
+                                          case DeliveryQos of
+                                              ?QOS_0 -> undefined;
+                                              ?QOS_1 -> MsgId
+                                          end,
+                                        topic_name =
+                                    % TODO: 替换为JT808
+                                          rabbit_mqtt_util:amqp2mqtt(
+                                            RoutingKey) },
+                           payload = Payload}, PState),
+              case Qos of
+                  {?QOS_0, ?QOS_0} ->
+                      {ok, PState};
+                  {?QOS_1, ?QOS_1} ->
+                      Awaiting1 = gb_trees:insert(MsgId, DeliveryTag, Awaiting),
+                      PState1 = PState#proc_state{ awaiting_ack = Awaiting1 },
+                      PState2 = next_msg_id(PState1),
+                      {ok, PState2};
+                  {?QOS_0, ?QOS_1} ->
+                      amqp_channel:cast(
+                        Channel, #'basic.ack'{ delivery_tag = DeliveryTag }),
+                      {ok, PState}
+              end
+    end;
+
+amqp_callback(#'basic.ack'{ multiple = true, delivery_tag = Tag } = Ack,
+              PState = #proc_state{ unacked_pubs = UnackedPubs,
+                                    send_fun     = SendFun }) ->
+    case gb_trees:size(UnackedPubs) > 0 andalso
+         gb_trees:take_smallest(UnackedPubs) of
+        {TagSmall, MsgId, UnackedPubs1} when TagSmall =< Tag ->
+            SendFun(
+              % TODO: 替换为JT808报文
+              #mqtt_frame{ fixed    = #mqtt_frame_fixed{ type = ?PUBACK },
+                           variable = #mqtt_frame_publish{ message_id = MsgId }},
+              PState),
+            amqp_callback(Ack, PState #proc_state{ unacked_pubs = UnackedPubs1 });
+        _ ->
+            {ok, PState}
+    end;
+
+amqp_callback(#'basic.ack'{ multiple = false, delivery_tag = Tag },
+              PState = #proc_state{ unacked_pubs = UnackedPubs,
+                                    send_fun     = SendFun }) ->
+    SendFun(
+      % TODO: 替换为JT808报文
+      #mqtt_frame{ fixed    = #mqtt_frame_fixed{ type = ?PUBACK },
+                   variable = #mqtt_frame_publish{
+                                message_id = gb_trees:get(
+                                               Tag, UnackedPubs) }}, PState),
+    {ok, PState #proc_state{ unacked_pubs = gb_trees:delete(Tag, UnackedPubs) }}.
+
+delivery_dup({#'basic.deliver'{ redelivered = Redelivered },
+              #amqp_msg{ props = #'P_basic'{ headers = Headers }},
+              _DeliveryCtx}) ->
+        % TODO: 替换为JT808
+    case rabbit_mqtt_util:table_lookup(Headers, <<"x-mqtt-dup">>) of
+        undefined   -> Redelivered;
+        {bool, Dup} -> Redelivered orelse Dup
+    end.
+
+%% decide at which qos level to deliver based on subscription
+%% and the message publish qos level. non-MQTT publishes are
+%% assumed to be qos 1, regardless of delivery_mode.
+delivery_qos(Tag, _Headers,  #proc_state{ consumer_tags = {Tag, _} }) ->
+    {?QOS_0, ?QOS_0};
+delivery_qos(Tag, Headers,   #proc_state{ consumer_tags = {_, Tag} }) ->
+    % TODO: 替换为JT808
+    case rabbit_mqtt_util:table_lookup(Headers, <<"x-mqtt-publish-qos">>) of
+        {byte, Qos} -> {lists:min([Qos, ?QOS_1]), ?QOS_1};
+        undefined   -> {?QOS_1, ?QOS_1}
+    end.
+
+% TODO: messageid需要处理
+ensure_valid_mqtt_message_id(Id) when Id >= 16#ffff ->
+    1;
+ensure_valid_mqtt_message_id(Id) ->
+    Id.
+
+%safe_max_id(Id0, Id1) ->
+%    ensure_valid_mqtt_message_id(erlang:max(Id0, Id1)).
+
+next_msg_id(PState = #proc_state{ message_id = MsgId0 }) ->
+    MsgId1 = ensure_valid_mqtt_message_id(MsgId0 + 1),
+    PState#proc_state{ message_id = MsgId1 }.
 
 adapter_info(Sock, ProtoName) ->
     amqp_connection:socket_adapter_info(Sock, {ProtoName, "N/A"}).

@@ -123,13 +123,11 @@ handle_cast(Msg, State) ->
 
 handle_info({#'basic.deliver'{}, #amqp_msg{}, _DeliveryCtx} = Delivery,
             State = #state{ proc_state = ProcState }) ->
-    % TODO: ??? reply？？
-    callback_reply(State, rabbit_mqtt_processor:amqp_callback(Delivery,
+    callback_reply(State, huwo_jt808_processor:amqp_callback(Delivery,
                                                               ProcState));
 
 handle_info(#'basic.ack'{} = Ack, State = #state{ proc_state = ProcState }) ->
-    % TODO: ??? reply？？
-    callback_reply(State, rabbit_mqtt_processor:amqp_callback(Ack, ProcState));
+    callback_reply(State, huwo_jt808_processor:amqp_callback(Ack, ProcState));
 
 handle_info(#'basic.consume_ok'{}, State) ->
     {noreply, State, hibernate};
@@ -164,7 +162,7 @@ handle_info({inet_reply, _Sock, {error, Reason}}, State = #state {}) ->
 handle_info({conserve_resources, Conserve}, State) ->
     maybe_process_deferred_recv(
       control_throttle(State #state{ conserve = Conserve }));
-%% TODO: 验证碰撞???
+%% 验证碰撞???
 handle_info({bump_credit, Msg}, State) ->
     credit_flow:handle_bump_msg(Msg),
     maybe_process_deferred_recv(control_throttle(State));
@@ -235,7 +233,7 @@ do_terminate({network_error, Reason}, _State) ->
 do_terminate(normal, #state{proc_state = ProcState,
                          conn_name  = ConnName}) ->
     huwo_jt808_processor:close_connection(ProcState),
-    rabbit_log_connection:info("closing MQTT connection ~p (~s)~n", [self(), ConnName]),
+    rabbit_log_connection:info("closing JT808 connection ~p (~s)~n", [self(), ConnName]),
     ok;
 
 do_terminate(_Reason, #state{proc_state = ProcState}) ->
@@ -424,4 +422,4 @@ info_internal(connection_state, #state{connection_state = Val}) ->
 info_internal(connection, #state{connection = Val}) ->
     Val;
 info_internal(Key, #state{proc_state = ProcState}) ->
-    rabbit_mqtt_processor:info(Key, ProcState).
+    huwo_jt808_processor:info(Key, ProcState).
