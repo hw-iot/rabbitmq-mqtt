@@ -49,7 +49,7 @@ initial_state(Socket, SSLLoginName,
 %% amqp_pub()
 
 %% 自定义的amqp_pub
-%% TODO: 用系统的替换
+%% TODO: 用系统的amqp函数替换这个自定义的
 amqp_pub(#huwo_jt808_frame{
             payload = Payload
            }) ->
@@ -72,6 +72,7 @@ amqp_pub(#huwo_jt808_frame{
     ok = amqp_connection:close(Connection),
     ok.
 
+
 %%-----------------------------------------
 -define(MAGIC, 42).
 
@@ -79,7 +80,7 @@ amqp_pub(#huwo_jt808_frame{
 %% debug hello package
 process_frame(Frame = #huwo_jt808_frame{ header = #huwo_jt808_frame_header{ id = ?MAGIC}},
               PState) ->
-    case process_request(42, Frame, PState) of
+    case process_request(?MAGIC, Frame, PState) of
         {ok, PState1} -> {ok, PState1, PState1#proc_state.connection};
         Ret -> Ret
     end;
@@ -93,12 +94,15 @@ process_frame(#huwo_jt808_frame{
 	Ret -> Ret
     end.
 
-
 %% 如果不是注册设备的消息，但状态中的connection没定义说明没有注册就发送其他信息
 %% process_frame(#huwo_jt808_frame{ header = #huwo_jt808_frame_header{ id = MsgId}},
 %%               PState = #proc_state{ connection = undefined }) %%
 %%             when MsgId =/= ?MSG_ID_REG ->
 %%                 {error, connect_expected, PState}.
+
+
+%% process_request()
+
 
 process_request(?CONNECT,
 		#huwo_jt808_frame{ payload = Payload},
@@ -124,6 +128,7 @@ process_request(?CONNECT,
     bin_utils:dump(process_connect_request, Request),
     {ok, PState0};
 
+%% 设备注册
 %% process_request(?MSG_ID_REG,
 %%                 Frame,
 %%                 PState0 = #proc_state{ ssl_login_name = _SSLLoginName,
@@ -134,6 +139,10 @@ process_request(?CONNECT,
 %%     bin_utils:dump(process_request, Frame),
 %%     {ok, PState0};
 
+
+
+
+%% 目前用于测试
 process_request(_MessageType,
                 _Frame,
                 PState0 = #proc_state{ send_fun       = _SendFun }) ->
@@ -172,6 +181,7 @@ hand_off_to_retainer(RetainerPid, Topic, Msg) ->
     %% TODO: retainer支持
     rabbit_mqtt_retainer:retain(RetainerPid, Topic, Msg),
     ok.
+
 
 %% send_will()
 
@@ -237,7 +247,7 @@ amqp_pub(#huwo_jt808_msg{ qos        = Qos,
                                awaiting_seqno = SeqNo }) ->
     Method = #'basic.publish'{ exchange    = Exchange,
                                routing_key =
-                                   rabbit_mqtt_util:mqtt2amqp(Topic)}, % TODO: 协议转换需要替换
+                                   rabbit_mqtt_util:mqtt2amqp(Topic)}, %% TODO: 协议转换需要替换
     Headers = [{<<"x-mqtt-publish-qos">>, byte, Qos},
                {<<"x-mqtt-dup">>, bool, Dup}],
     Msg = #amqp_msg{ props   = #'P_basic'{ headers       = Headers,
@@ -254,8 +264,8 @@ amqp_pub(#huwo_jt808_msg{ qos        = Qos,
                         awaiting_seqno = SeqNo1 }.
 
 
-% amqp_callback
-% TODO: 从mqtt frame 提取的，mqtt的消息类型，换为JT808后要去掉
+%% amqp_callback
+%% TODO: 从mqtt frame 提取的，mqtt的消息类型，换为JT808后要去掉
 -define(PUBLISH,      3).
 -define(PUBACK,       4).
 amqp_callback({#'basic.deliver'{ consumer_tag = ConsumerTag,
@@ -278,7 +288,7 @@ amqp_callback({#'basic.deliver'{ consumer_tag = ConsumerTag,
             {ok, PState};
         {Dup, {DeliveryQos, _SubQos} = Qos}     ->
             SendFun(
-                % TODO: 替换为JT808报文
+                %% TODO: 替换为JT808报文
               #mqtt_frame{ fixed = #mqtt_frame_fixed{
                                      type = ?PUBLISH,
                                      qos  = DeliveryQos,
@@ -290,7 +300,7 @@ amqp_callback({#'basic.deliver'{ consumer_tag = ConsumerTag,
                                               ?QOS_1 -> MsgId
                                           end,
                                         topic_name =
-                                    % TODO: 替换为JT808
+                                    %% TODO: 替换为JT808
                                           rabbit_mqtt_util:amqp2mqtt(
                                             RoutingKey) },
                            payload = Payload}, PState),
@@ -316,7 +326,7 @@ amqp_callback(#'basic.ack'{ multiple = true, delivery_tag = Tag } = Ack,
          gb_trees:take_smallest(UnackedPubs) of
         {TagSmall, MsgId, UnackedPubs1} when TagSmall =< Tag ->
             SendFun(
-              % TODO: 替换为JT808报文
+              %% TODO: 替换为JT808报文
               #mqtt_frame{ fixed    = #mqtt_frame_fixed{ type = ?PUBACK },
                            variable = #mqtt_frame_publish{ message_id = MsgId }},
               PState),
@@ -329,7 +339,7 @@ amqp_callback(#'basic.ack'{ multiple = false, delivery_tag = Tag },
               PState = #proc_state{ unacked_pubs = UnackedPubs,
                                     send_fun     = SendFun }) ->
     SendFun(
-      % TODO: 替换为JT808报文
+      %% TODO: 替换为JT808报文
       #mqtt_frame{ fixed    = #mqtt_frame_fixed{ type = ?PUBACK },
                    variable = #mqtt_frame_publish{
                                 message_id = gb_trees:get(
@@ -339,7 +349,7 @@ amqp_callback(#'basic.ack'{ multiple = false, delivery_tag = Tag },
 delivery_dup({#'basic.deliver'{ redelivered = Redelivered },
               #amqp_msg{ props = #'P_basic'{ headers = Headers }},
               _DeliveryCtx}) ->
-        % TODO: 替换为JT808
+        %% TODO: 替换为JT808
     case rabbit_mqtt_util:table_lookup(Headers, <<"x-mqtt-dup">>) of
         undefined   -> Redelivered;
         {bool, Dup} -> Redelivered orelse Dup
@@ -357,14 +367,14 @@ delivery_qos(Tag, Headers,   #proc_state{ consumer_tags = {_, Tag} }) ->
         undefined   -> {?QOS_1, ?QOS_1}
     end.
 
-% TODO: messageid需要处理
+%% TODO: messageid需要处理
 ensure_valid_mqtt_message_id(Id) when Id >= 16#ffff ->
     1;
 ensure_valid_mqtt_message_id(Id) ->
     Id.
 
-%safe_max_id(Id0, Id1) ->
-%    ensure_valid_mqtt_message_id(erlang:max(Id0, Id1)).
+%%safe_max_id(Id0, Id1) ->
+%%    ensure_valid_mqtt_message_id(erlang:max(Id0, Id1)).
 
 next_msg_id(PState = #proc_state{ message_id = MsgId0 }) ->
     MsgId1 = ensure_valid_mqtt_message_id(MsgId0 + 1),

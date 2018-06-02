@@ -12,16 +12,16 @@
 
 
 -include_lib("amqp_client/include/amqp_client.hrl").
--include("rabbit_mqtt.hrl"). % TODO: 暂时先用mqtt的头部, 后面用自己的头
+-include("rabbit_mqtt.hrl"). %% TODO: 暂时先用mqtt的头部, 后面用自己的头, state需要修改
+%% TODO: mqtt协议中的messageid概念和jt808的messageid概念不一样，jt808的messageid类似mqtt的type，
 
-
-% used for debug
+%% used for debug
 -export([process_received_bytes/2, parse/2]).
 
 -define(SIMPLE_METRICS, [pid, recv_oct, send_oct, reductions]).
 -define(OTHER_METRICS, [recv_cnt, send_cnt, send_pend, garbage_collection, state]).
 
-%--------------------------------------------------------
+%%--------------------------------------------------------
 
 start_link(KeepaliveSup, Ref, Sock) ->
     Pid = proc_lib:spawn_link(?MODULE, init,
@@ -42,7 +42,7 @@ conserve_resources(Pid, _, {_, Conserve, _}) ->
     Pid ! {conserve_resources, Conserve},
     ok.
 
-% keepalive
+%% keepalive
 start_keepalive(_,   0        ) -> ok;
 start_keepalive(Pid, Keepalive) -> Pid ! {start_keepalives, Keepalive}.
 
@@ -56,7 +56,7 @@ info(Pid, InfoItems) ->
 %% gen_server callback
 
 init([KeepaliveSup, Ref, Sock]) ->
-    process_flag(trap_exit, true), % 主动捕获异常退出
+    process_flag(trap_exit, true), %% 主动捕获异常退出
     RealSocket = rabbit_net:unwrap_socket(Sock),
     rabbit_networking:accept_ack(Ref, RealSocket),
     case rabbit_net:connection_string(Sock, inbound) of
@@ -67,7 +67,7 @@ init([KeepaliveSup, Ref, Sock]) ->
             ProcessorState = huwo_jt808_processor:initial_state(Sock,ssl_login_name(RealSocket)),
             gen_server2:enter_loop(?MODULE, [],
              rabbit_event:init_stats_timer(
-              control_throttle( % 控制流量?
+              control_throttle( %% 控制流量?
                #state{socket                 = RealSocket,
                       conn_name              = ConnStr,
                       await_recv             = false,
@@ -91,7 +91,7 @@ init([KeepaliveSup, Ref, Sock]) ->
     end.
 
 %%
-% handle_call() handle_cast()
+%% handle_call() handle_cast()
 %%
 
 handle_call({info, InfoItems}, _From, State) ->
@@ -118,7 +118,7 @@ handle_cast(Msg, State) ->
 
 
 %%
-% handle_info()
+%% handle_info()
 %%
 
 handle_info({#'basic.deliver'{}, #amqp_msg{}, _DeliveryCtx} = Delivery,
@@ -189,8 +189,8 @@ handle_info(Msg, State) ->
     {stop, {huwo_jt808_unexpected_cast, Msg}, State}.
 
 %%
-%
-% terminate()
+%%
+%% terminate()
 %%
 
 terminate(Reason, State) ->
@@ -256,7 +256,7 @@ ssl_login_name(Sock) ->
 
 %%----------------------------------------------------------------------------
 
-% biz
+%% biz
 
 process_received_bytes(Bytes,
                        State = #state{ parse_state = ParseState,
@@ -286,7 +286,7 @@ parse(Bytes, ParseState) ->
 
 
 %%----------------------------------------------------------------------------
-% private
+%% private
 
 maybe_process_deferred_recv(State = #state{ deferred_recv = undefined }) ->
     {noreply, State, hibernate};
@@ -320,7 +320,7 @@ ensure_stats_timer(State = #state{}) ->
 
 infos(Items, State) -> [{Item, info_internal(Item, State)} || Item <- Items].
 
-% callback_reply()
+%% callback_reply()
 
 callback_reply(State, {ok, ProcState}) ->
     {noreply, pstate(State, ProcState), hibernate};
@@ -330,7 +330,7 @@ callback_reply(State, {error, Reason, ProcState}) ->
 pstate(State = #state {}, PState = #proc_state{}) ->
     State #state{ proc_state = PState }.
 
-% send_will_and_terminate()
+%% send_will_and_terminate()
 
 send_will_and_terminate(PState, State) ->
     send_will_and_terminate(PState, {shutdown, conn_closed}, State).
@@ -343,7 +343,7 @@ send_will_and_terminate(PState, Reason, State) ->
 
 
 
-% network_error()
+%% network_error()
 
 network_error(closed,
               State = #state{ conn_name  = ConnStr,
@@ -364,7 +364,7 @@ network_error(Reason,
     send_will_and_terminate(PState, State).
 
 
-% run_socket()
+%% run_socket()
 
 run_socket(State = #state{ connection_state = blocked }) ->
     State;
@@ -377,8 +377,8 @@ run_socket(State = #state{ socket = Sock }) ->
     State#state{ await_recv = true }.
 
 
-% control_throttle()
-% 空流函数
+%% control_throttle()
+%% 空流函数
 
 control_throttle(State = #state{ connection_state = Flow,
                                  conserve         = Conserve }) ->
