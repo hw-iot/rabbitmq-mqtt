@@ -56,7 +56,7 @@ info(Pid, InfoItems) ->
 %% gen_server callback
 
 init([KeepaliveSup, Ref, Sock]) ->
-    process_flag(trap_exit, true), % TODO: ??? 啥函数
+    process_flag(trap_exit, true), % 主动捕获异常退出
     RealSocket = rabbit_net:unwrap_socket(Sock),
     rabbit_networking:accept_ack(Ref, RealSocket),
     case rabbit_net:connection_string(Sock, inbound) of
@@ -67,7 +67,7 @@ init([KeepaliveSup, Ref, Sock]) ->
             ProcessorState = huwo_jt808_processor:initial_state(Sock,ssl_login_name(RealSocket)),
             gen_server2:enter_loop(?MODULE, [],
              rabbit_event:init_stats_timer(
-              control_throttle(
+              control_throttle( % 控制流量?
                #state{socket                 = RealSocket,
                       conn_name              = ConnStr,
                       await_recv             = false,
@@ -105,7 +105,7 @@ handle_call({info, InfoItems}, _From, State) ->
 handle_call(Msg, From, State) ->
     {stop, {huwo_jt808_unexpected_cast, Msg, From}, State}.
 
-handle_cast(duplicate_id,
+handle_cast(duplicate_id, % 断开重复连接
             State = #state{ proc_state = PState,
                             conn_name  = ConnName }) ->
     rabbit_log_connection:warning("Huwo JT808 disconnecting duplicate client id ~p (~p)~n",
@@ -192,7 +192,8 @@ handle_info(Msg, State) ->
     {stop, {huwo_jt808_unexpected_cast, Msg}, State}.
 
 %%
-% terminate
+%
+% terminate()
 %%
 
 terminate(Reason, State) ->

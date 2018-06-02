@@ -269,6 +269,8 @@ check_topic_access(TopicName, Access,
         {error, access_refused}
   end.
 
+% info()
+% 返回进程状态的指定值
 
 info(consumer_tags, #proc_state{consumer_tags = Val}) -> Val;
 info(unacked_pubs, #proc_state{unacked_pubs = Val}) -> Val;
