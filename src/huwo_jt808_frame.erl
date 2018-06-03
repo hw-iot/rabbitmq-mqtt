@@ -6,6 +6,7 @@
 
 -export([initial_state/0]).
 -export([parse/2, parse/1, serialise/1]).
+-export([escape/1]).
 -export([dump/1]).
 
 -include("huwo_jt808_frame.hrl").
