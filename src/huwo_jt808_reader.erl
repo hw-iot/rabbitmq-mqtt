@@ -265,10 +265,12 @@ process_received_bytes(Bytes,
     case parse(Bytes, ParseState) of
         {ok, Frame}->
             bin_utils:dump(parse_result, huwo_jt808_processor:process_frame(Frame, ProcState)),
-            case huwo_jt808_processor:process_frame(Frame, ProcState) of
-                {ok} ->
-                    {ok}
-            end;
+            huwo_jt808_processor:process_frame(Frame, ProcState),
+            {noreply, ensure_stats_timer(State#state{ received_connect_frame = true }), hibernate};
+            %% case huwo_jt808_processor:process_frame(Frame, ProcState) of
+            %%     _ ->
+            %%         {ok}
+            %% end;
         {error, Error} ->
             rabbit_log_connection:error("JT808 detected framing error '~p'~n",
                                         [Error]),
@@ -307,7 +309,7 @@ emit_stats(State=#state{connection = C}) when C == none; C == undefined ->
     ensure_stats_timer(State1);
 emit_stats(State) ->
     [{_, Pid}, {_, Recv_oct}, {_, Send_oct}, {_, Reductions}] = I
-	= infos(?SIMPLE_METRICS, State),
+  = infos(?SIMPLE_METRICS, State),
     Infos = infos(?OTHER_METRICS, State),
     rabbit_core_metrics:connection_stats(Pid, Infos),
     rabbit_core_metrics:connection_stats(Pid, Recv_oct, Send_oct, Reductions),

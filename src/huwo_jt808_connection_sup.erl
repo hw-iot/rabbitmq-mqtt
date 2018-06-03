@@ -36,9 +36,9 @@ start_link(Ref, Sock, _Transport, []) ->
                            intrinsic, infinity, supervisor, [rabbit_keepalive_sup]}),
     {ok, ReaderPid} = supervisor2:start_child(
                         SupPid,
-                        {rabbit_mqtt_reader,
-                         {rabbit_mqtt_reader, start_link, [KeepaliveSup, Ref, Sock]},
-                         intrinsic, ?WORKER_WAIT, worker, [rabbit_mqtt_reader]}),
+                        {huwo_jt808_reader,
+                         {huwo_jt808_reader, start_link, [KeepaliveSup, Ref, Sock]},
+                         intrinsic, ?WORKER_WAIT, worker, [huwo_jt808_reader]}),
     {ok, SupPid, ReaderPid}.
 
 start_keepalive_link() ->
