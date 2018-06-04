@@ -105,27 +105,19 @@ process_frame(#huwo_jt808_frame{
 
 
 process_request(?CONNECT,
-                #huwo_jt808_frame{ payload = Payload},
+                #huwo_jt808_frame{
+                   payload = #huwo_jt808_frame_connect{
+                                mobile = _Mobile,
+                                client_name = _ClientName,
+                                username = _Username,
+                                password = _Password,
+                                client_type = _ClientType,
+                                phone_model = _PhoneModel,
+                                proto_ver = _ProtoVer,
+                                phone_os = _ProtoVer,
+                                work_mode = _WorkMode} = Payload},
                 PState0) ->
-    ?PARSE_STRING0(Payload,  Mobile,      Rest1),
-    ?PARSE_STRING0(Rest1,    ClientName,  Rest2),
-    ?PARSE_STRING0(Rest2,    Username,    Rest3),
-    ?PARSE_STRING0(Rest3,    Password,    Rest4),
-    ?PARSE_UINT8  (Rest4,    ClientType,  Rest5),
-    ?PARSE_STRING0(Rest5,    PhoneModel,  Rest6),
-    ?PARSE_STRING0(Rest6,    ProtoVer,    Rest7),
-    ?PARSE_UINT8  (Rest7,    WorkMode,    _Rest8),
-    Request = #huwo_jt808_frame_connect{
-                 mobile = Mobile,
-                 client_name = ClientName,
-                 username = Username,
-                 password = Password,
-                 client_type = ClientType,
-                 phone_model = PhoneModel,
-                 proto_ver = ProtoVer,
-                 phone_os = ProtoVer,
-                 work_mode = WorkMode},
-    bin_utils:dump(process_connect_request, Request),
+    bin_utils:dump(process_request_connect_payload, Payload),
     {ok, PState0};
 
 %% 设备注册
