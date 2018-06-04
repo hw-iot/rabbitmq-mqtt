@@ -17,8 +17,8 @@
 initial_state(Socket, SSLLoginName) ->
     RealSocket = rabbit_net:unwrap_socket(Socket),
     initial_state(RealSocket, SSLLoginName,
-		  adapter_info(Socket, 'MQTT'),
-		  fun send_client/2).
+      adapter_info(Socket, 'MQTT'),
+      fun send_client/2).
 
 initial_state(Socket, SSLLoginName,
               AdapterInfo0 = #amqp_adapter_info{additional_info = Extra},
@@ -26,11 +26,11 @@ initial_state(Socket, SSLLoginName,
     %% JT808 connections use exactly one channel. The frame max is not
     %% applicable and there is no way to know what client is used.
     AdapterInfo = AdapterInfo0#amqp_adapter_info{additional_info = [
-								    {channels, 1},
-								    {channel_max, 1},
-								    {frame_max, 0},
-								    {client_properties,
-								     [{<<"product">>, longstr, <<"JT808 client">>}]} | Extra]},
+                    {channels, 1},
+                    {channel_max, 1},
+                    {frame_max, 0},
+                    {client_properties,
+                     [{<<"product">>, longstr, <<"JT808 client">>}]} | Extra]},
     #proc_state{ unacked_pubs   = gb_trees:empty(),
                  awaiting_ack   = gb_trees:empty(),
                  message_id     = 1,
@@ -86,12 +86,12 @@ process_frame(Frame = #huwo_jt808_frame{ header = #huwo_jt808_frame_header{ id =
     end;
 %% 消息头已解析，可以取得消息类型MsgID。消息体 Payload 为二进制，待进一步解析
 process_frame(#huwo_jt808_frame{
-		 header = #huwo_jt808_frame_header{
-			     id = MsgID}} = Frame, PState) ->
+     header = #huwo_jt808_frame_header{
+           id = MsgID}} = Frame, PState) ->
     bin_utils:dump(process_frame_frame, Frame),
     case process_request(MsgID, Frame, PState) of
-	{ok, PState1} -> {ok, PState1, PState1#proc_state.connection};
-	Ret -> Ret
+  {ok, PState1} -> {ok, PState1, PState1#proc_state.connection};
+  Ret -> Ret
     end.
 
 %% 如果不是注册设备的消息，但状态中的connection没定义说明没有注册就发送其他信息
@@ -105,8 +105,8 @@ process_frame(#huwo_jt808_frame{
 
 
 process_request(?CONNECT,
-		#huwo_jt808_frame{ payload = Payload},
-		PState0) ->
+    #huwo_jt808_frame{ payload = Payload},
+    PState0) ->
     ?PARSE_STRING0(Payload,  Mobile,      Rest1),
     ?PARSE_STRING0(Rest1,    ClientName,  Rest2),
     ?PARSE_STRING0(Rest2,    Username,    Rest3),
@@ -116,15 +116,15 @@ process_request(?CONNECT,
     ?PARSE_STRING0(Rest6,    ProtoVer,    Rest7),
     ?PARSE_UINT8  (Rest7,    WorkMode,    _Rest8),
     Request = #huwo_jt808_frame_connect{
-		 mobile = Mobile,
-		 client_name = ClientName,
-		 username = Username,
-		 password = Password,
-		 client_type = ClientType,
-		 phone_model = PhoneModel,
-		 proto_ver = ProtoVer,
-		 phone_os = ProtoVer,
-		 work_mode = WorkMode},
+     mobile = Mobile,
+     client_name = ClientName,
+     username = Username,
+     password = Password,
+     client_type = ClientType,
+     phone_model = PhoneModel,
+     proto_ver = ProtoVer,
+     phone_os = ProtoVer,
+     work_mode = WorkMode},
     bin_utils:dump(process_connect_request, Request),
     {ok, PState0};
 
@@ -190,7 +190,7 @@ send_will(PState = #proc_state{will_msg = undefined}) ->
 
 %% TODO: huwo_jt808_msg的内容有什么用途需要研究
 send_will(PState = #proc_state{will_msg = WillMsg = #huwo_jt808_msg{retain = Retain,
-								    topic = Topic},
+                    topic = Topic},
                                retainer_pid = RPid,
                                channels = {ChQos0, ChQos1}}) ->
     case check_topic_access(Topic, write, PState) of
@@ -202,8 +202,8 @@ send_will(PState = #proc_state{will_msg = WillMsg = #huwo_jt808_msg{retain = Ret
             end;
         Error  ->
             rabbit_log:warning(
-	      "Could not send last will: ~p~n",
-	      [Error])
+        "Could not send last will: ~p~n",
+        [Error])
     end,
     case ChQos1 of
         undefined -> ok;
@@ -237,10 +237,10 @@ amqp_pub(Msg   = #huwo_jt808_msg{ qos = ?QOS_1 },
                                       awaiting_seqno = 1 });
 
 amqp_pub(#huwo_jt808_msg{ qos        = Qos,
-			  topic      = Topic,
-			  dup        = Dup,
-			  message_id = MessageId,
-			  payload    = Payload },
+        topic      = Topic,
+        dup        = Dup,
+        message_id = MessageId,
+        payload    = Payload },
          PState = #proc_state{ channels       = {ChQos0, ChQos1},
                                exchange       = Exchange,
                                unacked_pubs   = UnackedPubs,
@@ -390,8 +390,8 @@ close_connection(PState = #proc_state{ connection = Connection,
     %% todo: maybe clean session
     case ClientId of
         undefined -> ok;
-	%% TODO: ??? 需要解除MQTT依赖
-        _         -> ok = rabbit_mqtt_collector:unregister(ClientId, self())
+  %% TODO: ??? 需要解除MQTT依赖
+        _         -> ok = huwo_jt808_collector:unregister(ClientId, self())
     end,
     %% ignore noproc or other exceptions to avoid debris
     catch amqp_connection:close(Connection),
@@ -402,31 +402,31 @@ close_connection(PState = #proc_state{ connection = Connection,
 
 check_topic_access(TopicName, Access,
                    #proc_state{
-		      auth_state = #auth_state{user = User = #user{username = Username},
-					       vhost = VHost},
-		      exchange = Exchange,
-		      client_id = ClientId}) ->
+          auth_state = #auth_state{user = User = #user{username = Username},
+                 vhost = VHost},
+          exchange = Exchange,
+          client_id = ClientId}) ->
     Resource = #resource{virtual_host = VHost,
-			 kind = topic,
-			 name = Exchange},
-						% TODO: mqtt转amqp
+       kind = topic,
+       name = Exchange},
+            % TODO: mqtt转amqp
     Context = #{routing_key  => rabbit_mqtt_util:mqtt2amqp(TopicName),
-		variable_map => #{
-				  <<"username">>  => Username,
-				  <<"vhost">>     => VHost,
-				  <<"client_id">> => rabbit_data_coercion:to_binary(ClientId)
-				 }
-	       },
+    variable_map => #{
+          <<"username">>  => Username,
+          <<"vhost">>     => VHost,
+          <<"client_id">> => rabbit_data_coercion:to_binary(ClientId)
+         }
+         },
 
     try rabbit_access_control:check_topic_access(User, Resource, Access, Context) of
-	R -> R
+  R -> R
     catch
-	_:{amqp_error, access_refused, Msg, _} ->
-	    rabbit_log:error("operation resulted in an error (access_refused): ~p~n", [Msg]),
-	    {error, access_refused};
-	_:Error ->
-	    rabbit_log:error("~p~n", [Error]),
-	    {error, access_refused}
+  _:{amqp_error, access_refused, Msg, _} ->
+      rabbit_log:error("operation resulted in an error (access_refused): ~p~n", [Msg]),
+      {error, access_refused};
+  _:Error ->
+      rabbit_log:error("~p~n", [Error]),
+      {error, access_refused}
     end.
 
 %% info()
@@ -471,7 +471,7 @@ info(Other, _) -> throw({bad_argument, Other}).
 
 additional_info(Key,
                 #proc_state{adapter_info =
-				#amqp_adapter_info{additional_info = AddInfo}}) ->
+        #amqp_adapter_info{additional_info = AddInfo}}) ->
     proplists:get_value(Key, AddInfo).
 
 %%---------------------------------------------------------------------

@@ -48,9 +48,9 @@ emit_connection_info_local(Items, Ref, AggregatorPid) ->
         AggregatorPid, Ref, fun({_, {Pid, _}}) ->
             huwo_jt808_reader:info(Pid, Items)
         end,
-        rabbit_mqtt_collector:list()).
+        huwo_jt808_collector:list()).
 
 connection_info_local(Items) ->
-    Connections = rabbit_mqtt_collector:list(),
+    Connections = huwo_jt808_collector:list(),
     [huwo_jt808_reader:info(Pid, Items)
      || {_, {Pid, _}} <- Connections].
