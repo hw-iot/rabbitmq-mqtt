@@ -5,25 +5,21 @@
 -author("Luo Tao <lotreal@gmail.com>").
 
 -export([initial_state/0]).
--export([parse/2, parse/1, serialise/1]).
+-export([parse/2, serialise/1]).
 -export([parse_content/2]).
 -export([escape/1]).
 -export([dump/1]).
 
 -include("huwo_jt808_frame.hrl").
 
+-define(MAX_LEN, 2#1111111111111).
 
 initial_state() -> none.
 
 %% API
-parse(Frame, _) ->
-    parse(Frame).
-
-parse(Frame) ->
-    bin_utils:dump(frame_parse_frame, Frame),
-    Content = parse_content(Frame, ?FLAG_BOUNDARY),
-    %% bin_utils:dump(frame_parse_content, Content),
-    <<Id:16, Property:2/binary, Timestamp:6/binary, SN:16, Rest/binary>> = Content,
+parse(<<>>, none) ->
+    {more, fun(Bin) -> parse(Bin, none) end};
+parse(<<?FLAG_BOUNDARY, Id:16, Property:2/binary, Timestamp:6/binary, SN:16, Rest/binary>>, none) ->
     <<Aes:1, Zip:1, Divide:1, Len:13>> = Property,
     Header = #huwo_jt808_frame_header{
                 id        = Id,
@@ -33,11 +29,36 @@ parse(Frame) ->
                 length    = Len,
                 timestamp = bin_utils:bcd_decode(Timestamp),
                 sn        = SN},
-    <<Body:Len/binary, _:8>> = Rest,
-    {ok, Payload} = parse_body(Header, Body),
-    Request = #huwo_jt808_frame{header = Header, payload = Payload},
-    bin_utils:dump(frame_parse_result, Request),
-    {ok, Request}.
+    parse_frame(Rest, Header, Len);
+parse(Bin, Cont) ->
+    bin_utils:dump(frame_parse_func, Cont),
+    Cont(Bin).
+
+%% Bin: received data
+%% Header: jt808 header
+%% Len: int, defined in header
+%% ->
+%% {error, Reason}
+%% {more, ParseFunc}
+%% {ok, #huwo_jt808_frame, Rest}
+parse_frame(_Bin, _Header, Len) when Len > ?MAX_LEN ->
+    {error, invalid_jt808_frame_len};
+parse_frame(<<>>, Header, Len) ->
+    {more, fun(Bin) -> parse_frame(Bin, Header, Len) end};
+parse_frame(Bin, Header, Len) ->
+    case Bin of
+        <<Body:Len/binary, _CheckSum:8, ?FLAG_BOUNDARY, Rest/binary>> ->
+            case parse_body(Header, Body) of
+                {ok, Payload} ->
+                    {ok, #huwo_jt808_frame{header = Header, payload = Payload}, Rest};
+                _ ->
+                    {error, frame_data_corrupt}
+            end;
+        TooShortBin ->
+            {more, fun(BinMore) ->
+                           parse_frame(<<TooShortBin/binary, BinMore/binary>>, Header, Len)
+                   end}
+    end.
 
 parse_body(#huwo_jt808_frame_header{ id = ?CONNECT }, Body) ->
     ?PARSE_STRING0(Body,  Mobile,      Rest1),

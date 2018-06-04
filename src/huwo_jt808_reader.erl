@@ -257,15 +257,34 @@ ssl_login_name(Sock) ->
 %%----------------------------------------------------------------------------
 
 %% biz
+log_new_connection(#state{conn_name = ConnStr}) ->
+    rabbit_log_connection:info("accepting JT808 connection ~p (~s)~n", [self(), ConnStr]).
 
+process_received_bytes(<<>>, State = #state{proc_state = ProcState,
+                                            received_connect_frame = false}) ->
+    Jt808Conn = ProcState#proc_state.connection,
+    case Jt808Conn of
+        undefined -> ok;
+        _         -> log_new_connection(State)
+    end,
+    {noreply, ensure_stats_timer(State#state{ received_connect_frame = true }), hibernate};
+process_received_bytes(<<>>, State) ->
+    {noreply, ensure_stats_timer(State), hibernate};
 process_received_bytes(Bytes,
                        State = #state{ parse_state = ParseState,
-                                       proc_state  = ProcState }) ->
+                                       proc_state  = ProcState,
+                                       conn_name   = _ConnStr }) ->
     bin_utils:dump(process_received_bytes_state, State),
     case parse(Bytes, ParseState) of
-        {ok, Frame}->
-            bin_utils:dump(parse_result, huwo_jt808_processor:process_frame(Frame, ProcState)),
+        {more, ParseState1} ->
+            {noreply,
+             ensure_stats_timer(control_throttle( State #state{ parse_state = ParseState1 })),
+             hibernate};
+        {ok, Frame, _Rest}->
+            %% TODO case rabbit_mqtt_processor:process_frame(Frame, ProcState) of
+            %% bin_utils:dump(parse_result, huwo_jt808_processor:process_frame(Frame, ProcState)),
             huwo_jt808_processor:process_frame(Frame, ProcState),
+
             {noreply, ensure_stats_timer(State#state{ received_connect_frame = true }), hibernate};
             %% case huwo_jt808_processor:process_frame(Frame, ProcState) of
             %%     _ ->
@@ -280,7 +299,11 @@ process_received_bytes(Bytes,
 %%----------------------------------------------------------------------------
 parse(Bytes, ParseState) ->
     try
-        huwo_jt808_frame:parse(Bytes, ParseState)
+        bin_utils:dump(frame_parse_state, ParseState),
+        bin_utils:dump(frame_parse_input, Bytes),
+        ParseResult = huwo_jt808_frame:parse(Bytes, ParseState),
+        bin_utils:dump(frame_parse_result, ParseResult),
+        ParseResult
     catch
         _:Reason ->
             {error, {cannot_parse, Reason, erlang:get_stacktrace()}}
