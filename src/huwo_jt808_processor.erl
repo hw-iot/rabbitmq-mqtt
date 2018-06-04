@@ -1,23 +1,26 @@
 -module(huwo_jt808_processor).
 
+-export([info/2, initial_state/2, initial_state/4,
+         process_frame/2, amqp_pub/2, amqp_callback/2, send_will/1,
+         close_connection/1]).
 
--export([info/2, initial_state/2, initial_state/4]).
--export([amqp_callback/2, send_will/1]).
--export([
-         process_frame/2,
-         send_client/2,
-         close_connection/1
-        ]).
+%% for testing purposes
+-export([get_vhost_username/1, get_vhost/3, get_vhost_from_user_mapping/2]).
 
 -include_lib("amqp_client/include/amqp_client.hrl").
 %%-include("rabbit_mqtt_frame.hrl").
--include("rabbit_mqtt.hrl").
 -include("include/huwo_jt808_frame.hrl").
+-include("rabbit_mqtt.hrl").
+
+-define(APP, rabbitmq_jt808).
+%% ?FRAME_TYPE ~= ?FRAME
+%% -define(FRAME_TYPE(Frame, Type),
+%%         Frame = #mqtt_frame{ fixed = #mqtt_frame_fixed{ type = Type }}).
 
 initial_state(Socket, SSLLoginName) ->
     RealSocket = rabbit_net:unwrap_socket(Socket),
     initial_state(RealSocket, SSLLoginName,
-                  adapter_info(Socket, 'MQTT'),
+                  adapter_info(Socket, 'JT808'),
                   fun send_client/2).
 
 initial_state(Socket, SSLLoginName,
@@ -25,12 +28,12 @@ initial_state(Socket, SSLLoginName,
               SendFun) ->
     %% JT808 connections use exactly one channel. The frame max is not
     %% applicable and there is no way to know what client is used.
-    AdapterInfo = AdapterInfo0#amqp_adapter_info{additional_info = [
-                                                                    {channels, 1},
-                                                                    {channel_max, 1},
-                                                                    {frame_max, 0},
-                                                                    {client_properties,
-                                                                     [{<<"product">>, longstr, <<"JT808 client">>}]} | Extra]},
+    AdapterInfo = AdapterInfo0#amqp_adapter_info{
+                    additional_info = [{channels, 1},
+                                       {channel_max, 1},
+                                       {frame_max, 0},
+                                       {client_properties,
+                                        [{<<"product">>, longstr, <<"JT808 client">>}]} | Extra]},
     #proc_state{ unacked_pubs   = gb_trees:empty(),
                  awaiting_ack   = gb_trees:empty(),
                  message_id     = 1,
@@ -43,48 +46,14 @@ initial_state(Socket, SSLLoginName,
                  ssl_login_name = SSLLoginName,
                  send_fun       = SendFun }.
 
-
-%%-----------------------------------------------------------------------
-
-%% amqp_pub()
-
-%% 自定义的amqp_pub
-%% TODO: 用系统的amqp函数替换这个自定义的
-amqp_pub(#huwo_jt808_frame{
-            payload = Payload
-           }) ->
-    {ok, Connection} =
-        amqp_connection:start(#amqp_params_network{host = "localhost"}),
-    {ok, Channel} = amqp_connection:open_channel(Connection),
-
-    amqp_channel:call(Channel, #'exchange.declare'{exchange = <<"metronome">>,
-                                                   type = <<"topic">>}),
-
-    RoutingKey = <<"anonymous.info">>,
-    amqp_channel:cast(Channel,
-                      #'basic.publish'{
-                         exchange = <<"metronome">>,
-                         routing_key = RoutingKey},
-                      #amqp_msg{payload = Payload}),
-
-    io:format(" [x] Sent ~p:~p~n", [RoutingKey, Payload]),
-    ok = amqp_channel:close(Channel),
-    ok = amqp_connection:close(Connection),
-    ok.
-
-
 %%-----------------------------------------
--define(MAGIC, 42).
-
 %% 开始处理包
-%% debug hello package
-%% process_frame(Frame = #huwo_jt808_frame{ header = #huwo_jt808_frame_header{ id = ?MAGIC}},
-%%               PState) ->
-%%     case process_request(?MAGIC, Frame, PState) of
-%%         {ok, PState1} -> {ok, PState1, PState1#proc_state.connection};
-%%         Ret -> Ret
-%%     end;
 %% 消息头已解析，可以取得消息类型MsgID。消息体 Payload 为二进制，待进一步解析
+%% 如果不是注册设备的消息，但状态中的connection没定义说明没有注册就发送其他信息
+%% process_frame(#huwo_jt808_frame{ header = #huwo_jt808_frame_header{ id = MsgId}},
+%%               PState = #proc_state{ connection = undefined }) %%
+%%             when MsgId =/= ?MSG_ID_REG ->
+%%                 {error, connect_expected, PState}.
 process_frame(#huwo_jt808_frame{
                  header = #huwo_jt808_frame_header{
                              id = MsgID}} = Frame, PState) ->
@@ -93,15 +62,6 @@ process_frame(#huwo_jt808_frame{
         {ok, PState1} -> {ok, PState1, PState1#proc_state.connection};
         Ret -> Ret
     end.
-
-%% 如果不是注册设备的消息，但状态中的connection没定义说明没有注册就发送其他信息
-%% process_frame(#huwo_jt808_frame{ header = #huwo_jt808_frame_header{ id = MsgId}},
-%%               PState = #proc_state{ connection = undefined }) %%
-%%             when MsgId =/= ?MSG_ID_REG ->
-%%                 {error, connect_expected, PState}.
-
-
-%% process_request()
 
 
 process_request(?CONNECT,
@@ -134,21 +94,10 @@ process_request(?CONNECT,
     bin_utils:dump(process_request_connect_sendfun, SendFun),
     SendFun(<<"bingo">>, PState),
     bin_utils:dump(process_request_connect_clientid, ClientId),
+    %% TODO process_login
     {ok, PState};
 
-%% 设备注册
-%% process_request(?MSG_ID_REG,
-%%                 Frame,
-%%                 PState0 = #proc_state{ ssl_login_name = _SSLLoginName,
-%%                                        send_fun       = _SendFun,
-%%                                        adapter_info   = _AdapterInfo = #amqp_adapter_info{additional_info = _Extra} }) ->
-%% %% TODO: 验证登录
-%% %% TODO: 给当前用户开推送队列，用于服务端推送
-%%     bin_utils:dump(process_request, Frame),
-%%     {ok, PState0};
-
-
-
+%%-----------------------------------------------------------------------
 
 %% 目前用于测试
 process_request(_MessageType,
@@ -164,7 +113,7 @@ process_request(_MessageType,
     bin_utils:dump(process_request, Frame),
     %% SendFun = send_client/2,
     send_client(Frame, PState0),
-    amqp_pub(Frame),
+    amqp_pub(Frame, PState0),
     {ok, PState0}.
 
 send_client(Frame, #proc_state{ socket = Sock }) ->
@@ -173,10 +122,6 @@ send_client(Frame, #proc_state{ socket = Sock }) ->
     %% Package = huwo_jt808_frame:serialise(Frame),
     %% bin_utils:dump(send_client_package, Package),
     rabbit_net:port_command(Sock, Frame).
-
-
-
-
 
 %%---------------------------------------------------------------------
 %% sys
@@ -230,6 +175,32 @@ delivery_mode(?QOS_1) -> 2.
 %% amqp_pub
 
 amqp_pub(undefined, PState) ->
+    PState;
+
+%% amqp_pub()
+
+%% 自定义的amqp_pub
+%% TODO: 用系统的amqp函数替换这个自定义的
+amqp_pub(#huwo_jt808_frame{
+            payload = Payload},
+         PState) ->
+    {ok, Connection} =
+        amqp_connection:start(#amqp_params_network{host = "localhost"}),
+    {ok, Channel} = amqp_connection:open_channel(Connection),
+
+    amqp_channel:call(Channel, #'exchange.declare'{exchange = <<"metronome">>,
+                                                   type = <<"topic">>}),
+
+    RoutingKey = <<"anonymous.info">>,
+    amqp_channel:cast(Channel,
+                      #'basic.publish'{
+                         exchange = <<"metronome">>,
+                         routing_key = RoutingKey},
+                      #amqp_msg{payload = Payload}),
+
+    io:format(" [x] Sent ~p:~p~n", [RoutingKey, Payload]),
+    ok = amqp_channel:close(Channel),
+    ok = amqp_connection:close(Connection),
     PState;
 
 %% set up a qos1 publishing channel if necessary
@@ -484,3 +455,91 @@ additional_info(Key,
 
 %%---------------------------------------------------------------------
 %% private
+
+get_vhost(UserBin, none, Port) ->
+    get_vhost_no_ssl(UserBin, Port);
+get_vhost(UserBin, undefined, Port) ->
+    get_vhost_no_ssl(UserBin, Port);
+get_vhost(UserBin, SslLogin, Port) ->
+    get_vhost_ssl(UserBin, SslLogin, Port).
+
+get_vhost_no_ssl(UserBin, Port) ->
+    case vhost_in_username(UserBin) of
+        true  ->
+            {vhost_in_username_or_default, get_vhost_username(UserBin)};
+        false ->
+            PortVirtualHostMapping = rabbit_runtime_parameters:value_global(
+                mqtt_port_to_vhost_mapping
+            ),
+            case get_vhost_from_port_mapping(Port, PortVirtualHostMapping) of
+                undefined ->
+                    {default_vhost, {rabbit_mqtt_util:env(vhost), UserBin}};
+                VHost ->
+                    {port_to_vhost_mapping, {VHost, UserBin}}
+            end
+    end.
+
+get_vhost_ssl(UserBin, SslLoginName, Port) ->
+    UserVirtualHostMapping = rabbit_runtime_parameters:value_global(
+        mqtt_default_vhosts
+    ),
+    case get_vhost_from_user_mapping(SslLoginName, UserVirtualHostMapping) of
+        undefined ->
+            PortVirtualHostMapping = rabbit_runtime_parameters:value_global(
+                mqtt_port_to_vhost_mapping
+            ),
+            case get_vhost_from_port_mapping(Port, PortVirtualHostMapping) of
+                undefined ->
+                    {vhost_in_username_or_default, get_vhost_username(UserBin)};
+                VHostFromPortMapping ->
+                    {port_to_vhost_mapping, {VHostFromPortMapping, UserBin}}
+            end;
+        VHostFromCertMapping ->
+            {cert_to_vhost_mapping, {VHostFromCertMapping, UserBin}}
+    end.
+
+vhost_in_username(UserBin) ->
+    case application:get_env(?APP, ignore_colons_in_username) of
+        {ok, true} -> false;
+        _ ->
+            %% split at the last colon, disallowing colons in username
+            case re:split(UserBin, ":(?!.*?:)") of
+                [_, _]      -> true;
+                [UserBin]   -> false
+            end
+    end.
+
+get_vhost_username(UserBin) ->
+    Default = {rabbit_mqtt_util:env(vhost), UserBin},
+    case application:get_env(?APP, ignore_colons_in_username) of
+        {ok, true} -> Default;
+        _ ->
+            %% split at the last colon, disallowing colons in username
+            case re:split(UserBin, ":(?!.*?:)") of
+                [Vhost, UserName] -> {Vhost,  UserName};
+                [UserBin]         -> Default
+            end
+    end.
+
+get_vhost_from_user_mapping(_User, not_found) ->
+    undefined;
+get_vhost_from_user_mapping(User, Mapping) ->
+    M = rabbit_data_coercion:to_proplist(Mapping),
+    case rabbit_misc:pget(User, M) of
+        undefined ->
+            undefined;
+        VHost ->
+            VHost
+    end.
+
+get_vhost_from_port_mapping(_Port, not_found) ->
+    undefined;
+get_vhost_from_port_mapping(Port, Mapping) ->
+    M = rabbit_data_coercion:to_proplist(Mapping),
+    Res = case rabbit_misc:pget(rabbit_data_coercion:to_binary(Port), M) of
+        undefined ->
+            undefined;
+        VHost ->
+            VHost
+    end,
+    Res.
