@@ -50,6 +50,7 @@ init([]) ->
 
 handle_call({register, ClientId, Pid}, _From,
             State = #state{client_ids = Ids}) ->
+    io:fwrite("register, ClientId: ~p, Pid ~p", [ClientId, Pid]),
     Ids1 = case maps:find(ClientId, Ids) of
                {ok, {OldPid, MRef}} when Pid =/= OldPid ->
                    catch gen_server2:cast(OldPid, duplicate_id),
@@ -62,6 +63,7 @@ handle_call({register, ClientId, Pid}, _From,
     {reply, ok, State#state{client_ids = Ids2}};
 
 handle_call({unregister, ClientId, Pid}, _From, State = #state{client_ids = Ids}) ->
+    io:fwrite("unregister, ClientId: ~p, Pid ~p", [ClientId, Pid]),
     {Reply, Ids1} = case maps:find(ClientId, Ids) of
                         {ok, {Pid, MRef}} -> erlang:demonitor(MRef),
                                              {ok, maps:remove(ClientId, Ids)};
@@ -84,10 +86,10 @@ handle_info({'EXIT', _, {shutdown, closed}}, State) ->
 handle_info({'DOWN', MRef, process, DownPid, _Reason},
             State = #state{client_ids = Ids}) ->
     Ids1 = maps:filter(fun (ClientId, {Pid, M})
-                           when Pid =:= DownPid, MRef =:= M ->
+                             when Pid =:= DownPid, MRef =:= M ->
                                rabbit_log_connection:warning(
-                                              "MQTT disconnect from ~p~n",
-                                              [ClientId]),
+                                 "MQTT disconnect from ~p~n",
+                                 [ClientId]),
                                false;
                            (_, _) ->
                                true
