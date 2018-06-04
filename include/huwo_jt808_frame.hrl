@@ -1,14 +1,12 @@
+-define(PROTOCOL_NAMES,  [{3, "JT808 3"}, {4, "JT808 4"}]).
+
 -define(FLAG_BOUNDARY, 16#3E).
 -define(ESCAPED_3E, <<16#3D, 16#02>>).
 -define(ESCAPED_3D, <<16#3D, 16#01>>).
 
--define(MSG_ID_REG,16#0103).
-
--define(SEP, <<0,0>>).
--define(STRING0(Val), (list_to_binary(Val))/binary, ?SEP/binary).
+-define(STRING0(Val), (list_to_binary(Val))/binary, <<0,0>>/binary).
 -define(PARSE_STRING0(Payload, Key, Rest), [Key, Rest] = binary:split(Payload, [<<0,0>>])).
 -define(PARSE_UINT8(Payload, Key, Rest), << Key:8, Rest/binary >> = Payload).
-
 
 -define(CONNECT,    16#0103).
 -define(DISCONNECT, 16#0108).
@@ -18,6 +16,19 @@
 -define(HEARTBEAT,  16#0105).
 -define(GPSV1,      16#0203).
 -define(GPSV2,      16#0205).
+
+%% connect return codes
+-define(CONNACK_ACCEPT,      0).
+-define(CONNACK_PROTO_VER,   1). %% unacceptable protocol version
+-define(CONNACK_INVALID_ID,  2). %% identifier rejected
+-define(CONNACK_SERVER,      3). %% server unavailable
+-define(CONNACK_CREDENTIALS, 4). %% bad user name or password
+-define(CONNACK_AUTH,        5). %% not authorized
+
+-define(QOS_0, 0).
+-define(QOS_1, 1).
+-define(QOS_2, 2).
+
 
 -define(NEW_FRAME(Payload, SN),
         #huwo_jt808_frame{
@@ -32,9 +43,6 @@
                                              id = ID},
            payload = Payload}).
 
--define(QOS_0, 0).
--define(QOS_1, 1).
--define(QOS_2, 2).
 
 -type message_id() :: any().
 
