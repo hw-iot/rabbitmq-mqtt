@@ -78,12 +78,12 @@ amqp_pub(#huwo_jt808_frame{
 
 %% 开始处理包
 %% debug hello package
-process_frame(Frame = #huwo_jt808_frame{ header = #huwo_jt808_frame_header{ id = ?MAGIC}},
-              PState) ->
-    case process_request(?MAGIC, Frame, PState) of
-        {ok, PState1} -> {ok, PState1, PState1#proc_state.connection};
-        Ret -> Ret
-    end;
+%% process_frame(Frame = #huwo_jt808_frame{ header = #huwo_jt808_frame_header{ id = ?MAGIC}},
+%%               PState) ->
+%%     case process_request(?MAGIC, Frame, PState) of
+%%         {ok, PState1} -> {ok, PState1, PState1#proc_state.connection};
+%%         Ret -> Ret
+%%     end;
 %% 消息头已解析，可以取得消息类型MsgID。消息体 Payload 为二进制，待进一步解析
 process_frame(#huwo_jt808_frame{
                  header = #huwo_jt808_frame_header{
@@ -107,18 +107,34 @@ process_frame(#huwo_jt808_frame{
 process_request(?CONNECT,
                 #huwo_jt808_frame{
                    payload = #huwo_jt808_frame_connect{
-                                mobile = _Mobile,
+                                client_id = ClientId0,
+                                mobile = Mobile,
                                 client_name = _ClientName,
                                 username = _Username,
                                 password = _Password,
-                                client_type = _ClientType,
+                                client_type = ClientType,
                                 phone_model = _PhoneModel,
                                 proto_ver = _ProtoVer,
                                 phone_os = _ProtoVer,
-                                work_mode = _WorkMode} = Payload},
-                PState0) ->
-    bin_utils:dump(process_request_connect_payload, Payload),
-    {ok, PState0};
+                                work_mode = _WorkMode} = _Payload},
+                PState0 = #proc_state{ ssl_login_name = _SSLLoginName,
+                                       send_fun       = SendFun,
+                                       adapter_info   = AdapterInfo = #amqp_adapter_info{additional_info = Extra} }) ->
+    %% bin_utils:dump(process_request_connect_payload, Payload),
+    %% bin_utils:dump(process_request_connect_clientid0, ClientId0),
+    ClientId = case ClientId0 of
+                   undefined -> <<Mobile/binary, ClientType:8>>;
+                   [_|_]     -> ClientId0
+               end,
+    AdapterInfo1 = AdapterInfo#amqp_adapter_info{
+                     additional_info =
+                         [{variable_map, #{<<"client_id">> => rabbit_data_coercion:to_binary(ClientId)}} | Extra]},
+    PState = PState0#proc_state{adapter_info = AdapterInfo1},
+
+    bin_utils:dump(process_request_connect_sendfun, SendFun),
+    SendFun(<<"bingo">>, PState),
+    bin_utils:dump(process_request_connect_clientid, ClientId),
+    {ok, PState};
 
 %% 设备注册
 %% process_request(?MSG_ID_REG,
@@ -154,9 +170,9 @@ process_request(_MessageType,
 send_client(Frame, #proc_state{ socket = Sock }) ->
     bin_utils:dump(send_client_frame, Frame),
 
-    Package = huwo_jt808_frame:serialise(Frame),
-    bin_utils:dump(send_client_package, Package),
-    rabbit_net:port_command(Sock, Package).
+    %% Package = huwo_jt808_frame:serialise(Frame),
+    %% bin_utils:dump(send_client_package, Package),
+    rabbit_net:port_command(Sock, Frame).
 
 
 
