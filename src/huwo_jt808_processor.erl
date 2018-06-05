@@ -8,8 +8,11 @@
 -export([get_vhost_username/1, get_vhost/3, get_vhost_from_user_mapping/2]).
 
 -include_lib("amqp_client/include/amqp_client.hrl").
--include("include/huwo_jt808_frame.hrl").
 -include("rabbit_mqtt.hrl").
+-include("huwo_jt808.hrl").
+-include("include/huwo_jt808_frame.hrl").
+
+
 
 -define(APP, rabbitmq_jt808).
 %% ?FRAME_TYPE ~= ?FRAME
@@ -56,7 +59,7 @@ initial_state(Socket, SSLLoginName,
 process_frame(#huwo_jt808_frame{
                  header = #huwo_jt808_frame_header{
                              id = MsgID}} = Frame, PState) ->
-    bin_utils:dump(process_frame_frame, Frame),
+    ?DEBUG(process_process_frame, Frame),
     case process_request(MsgID, Frame, PState) of
         {ok, PState1} -> {ok, PState1, PState1#proc_state.connection};
         Ret -> Ret
@@ -71,7 +74,7 @@ process_request(?CONNECT,
                                 client_name = _ClientName,
                                 username = Username,
                                 password = Password,
-                                client_type = ClientType,
+                                client_type = _gClientType,
                                 phone_model = _PhoneModel,
                                 proto_ver = ProtoVer,
                                 phone_os = _ProtoVer,
@@ -79,24 +82,26 @@ process_request(?CONNECT,
                 PState0 = #proc_state{ ssl_login_name = SSLLoginName,
                                        send_fun       = SendFun,
                                        adapter_info   = AdapterInfo = #amqp_adapter_info{additional_info = Extra} }) ->
-    %% bin_utils:dump(process_request_connect_payload, Payload),
-    %% bin_utils:dump(process_request_connect_clientid0, ClientId0),
+    %% ?DEBUG(process_request_connect_payload, Payload),
+    %% ?DEBUG(process_request_connect_clientid0, ClientId0),
     ClientId = case ClientId0 of
-                   undefined -> <<Mobile/binary, ClientType:8>>;
+                   undefined -> rabbit_data_coercion:to_list(Mobile);
                    [_|_]     -> ClientId0
                end,
     AdapterInfo1 = AdapterInfo#amqp_adapter_info{
                      additional_info =
                          [{variable_map, #{<<"client_id">> => rabbit_data_coercion:to_binary(ClientId)}} | Extra]},
     PState = PState0#proc_state{adapter_info = AdapterInfo1},
+    ?DEBUG(process_login_case1, {lists:member(3, proplists:get_keys(?PROTOCOL_NAMES)), ClientId =:= undefined}),
     {Return, PState1} =
         case {lists:member(3, proplists:get_keys(?PROTOCOL_NAMES)),
-              ClientId0 =:= undefined} of
+              ClientId =:= undefined} of
             {false, _} ->
                 {?CONNACK_PROTO_VER, PState};
             {_, true} ->
                 {?CONNACK_INVALID_ID, PState};
             _ ->
+                ?DEBUG(process_login_creds, creds(Username, Password, SSLLoginName)),
                 case creds(Username, Password, SSLLoginName) of
                     nocreds ->
                         rabbit_log_connection:error("JT808 login failed: no credentials provided~n"),
@@ -115,19 +120,20 @@ process_request(?CONNECT,
                                 link(Conn),
                                 {ok, Ch} = amqp_connection:open_channel(Conn),
                                 link(Ch),
+                                ?DEBUG(process_request_connect_conn_ch, {Conn, Ch}),
                                 amqp_channel:enable_delivery_flow_control(Ch),
                                 ok = huwo_jt808_collector:register(
                                        ClientId, self()),
                                 Prefetch = rabbit_mqtt_util:env(prefetch),
                                 #'basic.qos_ok'{} = amqp_channel:call(
                                                       Ch, #'basic.qos'{prefetch_count = Prefetch}),
-                                Keepalive = 100,
+                                Keepalive = 1000000,
                                 huwo_jt808_reader:start_keepalive(self(), Keepalive),
                                 {SP, ProcState} =
                                     maybe_clean_sess(
                                       PState #proc_state{
                                         %% will_msg   = make_will_msg(Var),
-                                        %% clean_sess = CleanSess,
+                                        clean_sess = false,
                                         channels   = {Ch, undefined},
                                         connection = Conn,
                                         client_id  = ClientId,
@@ -139,12 +145,26 @@ process_request(?CONNECT,
                         end
                 end
         end,
+    ?DEBUG(process_login_return, {Return, PState1}),
     {ReturnCode, SessionPresent} = case Return of
                                        {?CONNACK_ACCEPT, _} = Return -> Return;
                                        Return                        -> {Return, false}
                                    end,
-    bin_utils:dump(process_login_return_code, ReturnCode),
-    bin_utils:dump(process_login_session_present, SessionPresent),
+    ?DEBUG(process_login_return_code, ReturnCode),
+    ?DEBUG(process_login_session_present, SessionPresent),
+    %% -record(mqtt_msg,            {retain :: boolean(),
+    %%                               qos :: ?QOS_0 | ?QOS_1 | ?QOS_2,
+    %%                               topic :: string(),
+    %%                               dup :: boolean(),
+    %%                               message_id :: message_id(),
+    %%                               payload :: binary()}).
+
+    Msg = #huwo_jt808_msg{
+       qos = ?QOS_0,
+       payload = <<"bingo">>
+      },
+    bin_utils:dump(process_request_publish_amqp_pub, {Msg, PState1}),
+    amqp_pub(Msg, PState1),
     SendFun(<<"bingo">>, PState1),
     %% SendFun(#mqtt_frame{ fixed    = #mqtt_frame_fixed{ type = ?CONNACK},
     %%                      variable = #mqtt_frame_connack{
@@ -164,7 +184,7 @@ process_request(_MessageType,
                            sn = 1},
                payload = <<"hello, 808!", 16#3D, 16#3E>>},
 
-    bin_utils:dump(process_request, Frame),
+    ?DEBUG(process_request, Frame),
     %% SendFun = send_client/2,
     send_client(Frame, PState0),
     amqp_pub(Frame, PState0),
@@ -177,8 +197,8 @@ process_login(UserBin, PassBin, ProtoVersion,
                            ssl_login_name = SslLoginName}) ->
     {ok, {_, _, _, ToPort}} = rabbit_net:socket_ends(Sock, inbound),
     {VHostPickedUsing, {VHost, UsernameBin}} = get_vhost(UserBin, SslLoginName, ToPort),
-    bin_utils:dump(vhost, VHost),
-    bin_utils:dump(usernamebin, UsernameBin),
+    ?DEBUG(vhost, VHost),
+    ?DEBUG(usernamebin, UsernameBin),
     rabbit_log_connection:info(
       "MQTT vhost picked using ~s~n",
       [human_readable_vhost_lookup_strategy(VHostPickedUsing)]),
@@ -242,10 +262,10 @@ human_readable_mqtt_version(_) ->
     "N/A".
 
 send_client(Frame, #proc_state{ socket = Sock }) ->
-    bin_utils:dump(send_client_frame, Frame),
+    ?DEBUG(send_client_frame, Frame),
 
     %% Package = huwo_jt808_frame:serialise(Frame),
-    %% bin_utils:dump(send_client_package, Package),
+    %% ?DEBUG(send_client_package, Package),
     rabbit_net:port_command(Sock, Frame).
 
 %%---------------------------------------------------------------------
@@ -302,38 +322,13 @@ delivery_mode(?QOS_1) -> 2.
 amqp_pub(undefined, PState) ->
     PState;
 
-%% amqp_pub()
-
-%% 自定义的amqp_pub
-%% TODO: 用系统的amqp函数替换这个自定义的
-amqp_pub(#huwo_jt808_frame{
-            payload = Payload},
-         PState) ->
-    {ok, Connection} =
-        amqp_connection:start(#amqp_params_network{host = "localhost"}),
-    {ok, Channel} = amqp_connection:open_channel(Connection),
-
-    amqp_channel:call(Channel, #'exchange.declare'{exchange = <<"metronome">>,
-                                                   type = <<"topic">>}),
-
-    RoutingKey = <<"anonymous.info">>,
-    amqp_channel:cast(Channel,
-                      #'basic.publish'{
-                         exchange = <<"metronome">>,
-                         routing_key = RoutingKey},
-                      #amqp_msg{payload = Payload}),
-
-    io:format(" [x] Sent ~p:~p~n", [RoutingKey, Payload]),
-    ok = amqp_channel:close(Channel),
-    ok = amqp_connection:close(Connection),
-    PState;
-
 %% set up a qos1 publishing channel if necessary
 %% this channel will only be used for publishing, not consuming
-amqp_pub(Msg   = #huwo_jt808_msg{ qos = ?QOS_1 },
+amqp_pub(Msg    = #huwo_jt808_msg{ qos = ?QOS_1 },
          PState = #proc_state{ channels       = {ChQos0, undefined},
                                awaiting_seqno = undefined,
                                connection     = Conn }) ->
+    ?DEBUG(amqp_pub1, PState),
     {ok, Channel} = amqp_connection:open_channel(Conn),
     #'confirm.select_ok'{} = amqp_channel:call(Channel, #'confirm.select'{}),
     amqp_channel:register_confirm_handler(Channel, self()),
@@ -341,7 +336,7 @@ amqp_pub(Msg   = #huwo_jt808_msg{ qos = ?QOS_1 },
                                       awaiting_seqno = 1 });
 
 amqp_pub(#huwo_jt808_msg{ qos        = Qos,
-                          topic      = Topic,
+                          %% topic      = Topic,
                           dup        = Dup,
                           message_id = MessageId,
                           payload    = Payload },
@@ -349,9 +344,9 @@ amqp_pub(#huwo_jt808_msg{ qos        = Qos,
                                exchange       = Exchange,
                                unacked_pubs   = UnackedPubs,
                                awaiting_seqno = SeqNo }) ->
+    ?DEBUG(amqp_pub2, PState),
     Method = #'basic.publish'{ exchange    = Exchange,
-                               routing_key =
-                                   rabbit_mqtt_util:mqtt2amqp(Topic)}, %% TODO: 协议转换需要替换
+                               routing_key = <<"huwo.jt808">>},
     Headers = [{<<"x-mqtt-publish-qos">>, byte, Qos},
                {<<"x-mqtt-dup">>, bool, Dup}],
     Msg = #amqp_msg{ props   = #'P_basic'{ headers       = Headers,
@@ -363,10 +358,11 @@ amqp_pub(#huwo_jt808_msg{ qos        = Qos,
                       SeqNo + 1};
             false -> {UnackedPubs, ChQos0, SeqNo}
         end,
-    amqp_chnnel:cast_flow(Ch, Method, Msg),
+    ?DEBUG(channel, {Ch, ChQos0, ChQos1}),
+    ?DEBUG(method, Method),
+    amqp_channel:cast_flow(Ch, Method, Msg),
     PState #proc_state{ unacked_pubs   = UnackedPubs1,
                         awaiting_seqno = SeqNo1 }.
-
 
 %% amqp_callback
 %% TODO: 从mqtt frame 提取的，mqtt的消息类型，换为JT808后要去掉
@@ -623,16 +619,18 @@ get_vhost_ssl(UserBin, SslLoginName, Port) ->
             {cert_to_vhost_mapping, {VHostFromCertMapping, UserBin}}
     end.
 
-vhost_in_username(UserBin) ->
-    case application:get_env(?APP, ignore_colons_in_username) of
-        {ok, true} -> false;
-        _ ->
-            %% split at the last colon, disallowing colons in username
-            case re:split(UserBin, ":(?!.*?:)") of
-                [_, _]      -> true;
-                [UserBin]   -> false
-            end
-    end.
+vhost_in_username(_UserBin) ->
+    true.
+%% TODO
+%% case application:get_env(?APP, ignore_colons_in_username) of
+%%     {ok, true} -> false;
+%%     _ ->
+%%         %% split at the last colon, disallowing colons in username
+%%         case re:split(UserBin, ":(?!.*?:)") of
+%%             [_, _]      -> true;
+%%             [UserBin]   -> false
+%%         end
+%% end.
 
 get_vhost_username(UserBin) ->
     Default = {rabbit_mqtt_util:env(vhost), UserBin},
@@ -680,37 +678,39 @@ human_readable_vhost_lookup_strategy(default_vhost) ->
 human_readable_vhost_lookup_strategy(Val) ->
     atom_to_list(Val).
 
-creds(User, Pass, SSLLoginName) ->
+creds(_User, _Pass, _SSLLoginName) ->
     DefaultUser   = rabbit_mqtt_util:env(default_user),
     DefaultPass   = rabbit_mqtt_util:env(default_pass),
-    {ok, Anon}    = application:get_env(?APP, allow_anonymous),
-    {ok, TLSAuth} = application:get_env(?APP, ssl_cert_login),
-    HaveDefaultCreds = Anon =:= true andalso
-        is_binary(DefaultUser) andalso
-        is_binary(DefaultPass),
+    {DefaultUser, DefaultPass}.
+%% TODO
+%% {ok, Anon}    = application:get_env(?APP, allow_anonymous),
+%% {ok, TLSAuth} = application:get_env(?APP, ssl_cert_login),
+%% HaveDefaultCreds = Anon =:= true andalso
+%%     is_binary(DefaultUser) andalso
+%%     is_binary(DefaultPass),
 
-    CredentialsProvided = User =/= undefined orelse
-        Pass =/= undefined,
+%% CredentialsProvided = User =/= undefined orelse
+%%     Pass =/= undefined,
 
-    CorrectCredentials = is_list(User) andalso
-        is_list(Pass),
+%% CorrectCredentials = is_list(User) andalso
+%%     is_list(Pass),
 
-    SSLLoginProvided = TLSAuth =:= true andalso
-        SSLLoginName =/= none,
+%% SSLLoginProvided = TLSAuth =:= true andalso
+%%     SSLLoginName =/= none,
 
-    case {CredentialsProvided, CorrectCredentials, SSLLoginProvided, HaveDefaultCreds} of
-        %% Username and password take priority
-        {true, true, _, _}          -> {list_to_binary(User),
-                                        list_to_binary(Pass)};
-        %% Either username or password is provided
-        {true, false, _, _}         -> {invalid_creds, {User, Pass}};
-        %% rabbitmq_jt808.ssl_cert_login is true. SSL user name provided.
-        %% Authenticating using username only.
-        {false, false, true, _}     -> {SSLLoginName, none};
-        %% Anonymous connection uses default credentials
-        {false, false, false, true} -> {DefaultUser, DefaultPass};
-        _                           -> nocreds
-    end.
+%% case {CredentialsProvided, CorrectCredentials, SSLLoginProvided, HaveDefaultCreds} of
+%%     %% Username and password take priority
+%%     {true, true, _, _}          -> {list_to_binary(User),
+%%                                     list_to_binary(Pass)};
+%%     %% Either username or password is provided
+%%     {true, false, _, _}         -> {invalid_creds, {User, Pass}};
+%%     %% rabbitmq_jt808.ssl_cert_login is true. SSL user name provided.
+%%     %% Authenticating using username only.
+%%     {false, false, true, _}     -> {SSLLoginName, none};
+%%     %% Anonymous connection uses default credentials
+%%     {false, false, false, true} -> {DefaultUser, DefaultPass};
+%%     _                           -> nocreds
+%% end.
 
 
 
