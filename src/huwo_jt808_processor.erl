@@ -317,7 +317,7 @@ send_client(Frame, #proc_state{ socket = Sock }) ->
 
     %% Package = huwo_jt808_frame:serialise(Frame),
     %% ?DEBUG(send_client_package, Package),
-    rabbit_net:port_command(Sock, <<"push!">>).
+    rabbit_net:port_command(Sock, Frame).
 
 %%---------------------------------------------------------------------
 %% sys
@@ -472,23 +472,26 @@ amqp_callback({#'basic.deliver'{ consumer_tag = ConsumerTag,
         {true, {?QOS_0, ?QOS_0}} ->
             {ok, PState};
         {Dup, {DeliveryQos, _SubQos} = Qos}     ->
+            _ = {Dup, RoutingKey, DeliveryQos},
             SendFun(
               %% TODO: 替换为JT808报文
-              #mqtt_frame{ fixed = #mqtt_frame_fixed{
-                                      type = ?PUBLISH,
-                                      qos  = DeliveryQos,
-                                      dup  = Dup },
-                           variable = #mqtt_frame_publish{
-                                         message_id =
-                                             case DeliveryQos of
-                                                 ?QOS_0 -> undefined;
-                                                 ?QOS_1 -> MsgId
-                                             end,
-                                         topic_name =
-                                             %% TODO: 替换为JT808
-                                             rabbit_mqtt_util:amqp2mqtt(
-                                               RoutingKey) },
-                           payload = Payload}, PState),
+              %% #mqtt_frame{ fixed = #mqtt_frame_fixed{
+              %%                         type = ?PUBLISH,
+              %%                         qos  = DeliveryQos,
+              %%                         dup  = Dup },
+              %%              variable = #mqtt_frame_publish{
+              %%                            message_id =
+              %%                                case DeliveryQos of
+              %%                                    ?QOS_0 -> undefined;
+              %%                                    ?QOS_1 -> MsgId
+              %%                                end,
+              %%                            topic_name =
+              %%                                %% TODO: 替换为JT808
+              %%                                rabbit_mqtt_util:amqp2mqtt(
+              %%                                  RoutingKey) },
+              %%              payload = Payload},
+              Payload,
+              PState),
             case Qos of
                 {?QOS_0, ?QOS_0} ->
                     {ok, PState};
