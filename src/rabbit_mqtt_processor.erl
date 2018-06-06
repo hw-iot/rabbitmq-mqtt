@@ -31,6 +31,40 @@
 -define(FRAME_TYPE(Frame, Type),
         Frame = #mqtt_frame{ fixed = #mqtt_frame_fixed{ type = Type }}).
 
+%% CALL: #Port<0.13059>,none
+%%
+%% RETURN:
+%% #proc_state{
+%%    socket = #Port<0.13059>,
+%%    subscriptions = #{},
+%%    consumer_tags = {undefined, undefined},
+%%    unacked_pubs = {0,nil},
+%%    awaiting_ack = {0,nil},
+%%    awaiting_seqno = undefined,
+%%    message_id = 1,
+%%    client_id = undefined,
+%%    clean_sess = undefined,
+%%    will_msg = undefined,
+%%    channels = {undefined, undefined},
+%%    connection = undefined,
+%%    exchange = <<"amq.topic">>,
+%%    adapter_info = #amqp_adapter_info{
+%%       host = {0,0,0,0,0,0,0,1},
+%%       port = 1883,
+%%       peer_host = {0,0,0,0,0,0,0,1},
+%%       peer_port = 55200,
+%%       name = <<"[::1]:55200 -> [::1]:1883">>,
+%%       protocol = {'MQTT', "N/A"},
+%%       additional_info = [{channels, 1},
+%%                          {channel_max, 1},
+%%                          {frame_max, 0},
+%%                          {client_properties,
+%%                           [{<<"product">>, longstr, <<"MQTT client">>}]},
+%%                          {ssl, false}]},
+%%    ssl_login_name = none,
+%%    retainer_pid = undefined,
+%%    auth_state = undefined,
+%%    send_fun #Fun<rabbit_mqtt_processor.0.125696231>}
 initial_state(Socket, SSLLoginName) ->
     RealSocket = rabbit_net:unwrap_socket(Socket),
     initial_state(RealSocket, SSLLoginName,
@@ -64,6 +98,31 @@ process_frame(#mqtt_frame{ fixed = #mqtt_frame_fixed{ type = Type }},
               PState = #proc_state{ connection = undefined } )
   when Type =/= ?CONNECT ->
     {error, connect_expected, PState};
+%% CALL:
+%% Frame = #mqtt_frame{
+%%    fixed = #mqtt_frame_fixed{
+%%               type = 1,
+%%               dup = false,
+%%               qos = 0,
+%%               retain = false
+%%              },
+%%    variable = #mqtt_frame_connect{
+%%                  proto_ver = 3,
+%%                  will_retain = false,
+%%                  will_qos = 0,
+%%                  will_flag = false,
+%%                  clean_sess = true,
+%%                  keep_alive = 60,
+%%                  client_id = "mosqsub|73961-morgana",
+%%                  will_topic = undefined,
+%%                  will_msg = undefined,
+%%                  username = undefined,
+%%                  password = undefined
+%%                 },
+%%    payload = undefined
+%%   },
+%% PState = initial_state:retrun:#proc_state
+%% RETURN:
 process_frame(Frame = #mqtt_frame{ fixed = #mqtt_frame_fixed{ type = Type }},
               PState) ->
     case process_request(Type, Frame, PState) of
@@ -71,6 +130,8 @@ process_frame(Frame = #mqtt_frame{ fixed = #mqtt_frame_fixed{ type = Type }},
         Ret -> Ret
     end.
 
+%% call (1, frame_as_process_frame, pstate_as_process_frame)
+%% return
 process_request(?CONNECT,
                 #mqtt_frame{ variable = #mqtt_frame_connect{
                                            username   = Username,
@@ -98,6 +159,8 @@ process_request(?CONNECT,
             {_, true} ->
                 {?CONNACK_INVALID_ID, PState};
             _ ->
+                %% call (undefined,undefined,none)
+                %% returned {<<"guest">>, <<"guest">>}
                 case creds(Username, Password, SSLLoginName) of
                     nocreds ->
                         rabbit_log_connection:error("MQTT login failed: no credentials provided~n"),
@@ -437,6 +500,92 @@ maybe_clean_sess(PState = #proc_state { clean_sess = false,
     {_Queue, PState1} = ensure_queue(?QOS_1, PState),
     SessionPresent = session_present(Channel, ClientId),
     {SessionPresent, PState1};
+%% (<0.455.0>) call rabbit_mqtt_processor:maybe_clean_sess({proc_state,#Port<0.13059>,#{},
+%%     {undefined,undefined},
+%%     {0,nil},
+%%     {0,nil},
+%%     undefined,1,"mosqsub|73961-morgana",true,undefined,
+%%     {<0.465.0>,undefined},
+%%     <0.458.0>,<<"amq.topic">>,
+%%     {amqp_adapter_info,
+%%         {0,0,0,0,0,0,0,1},
+%%         1883,
+%%         {0,0,0,0,0,0,0,1},
+%%         55200,<<"[::1]:55200 -> [::1]:1883">>,
+%%         {'MQTT',"N/A"},
+%%         [{variable_map,#{<<"client_id">> => <<"mosqsub|73961-morgana">>}},
+%%          {channels,1},
+%%          {channel_max,1},
+%%          {frame_max,0},
+%%          {client_properties,[{<<"product">>,longstr,<<"MQTT client">>}]},
+%%          {ssl,false}]},
+%%     none,<0.391.0>,
+%%     {auth_state,<<"guest">>,
+%%         {user,<<"guest">>,
+%%             [administrator],
+%%             [{rabbit_auth_backend_internal,none}]},
+%%         <<"/">>},
+%%     #Fun<rabbit_mqtt_processor.0.125696231>})
+%% (<0.455.0>) returned from rabbit_mqtt_processor:maybe_clean_sess/1 ->
+%%     {false,
+%%      {proc_state,
+%%       #Port<0.13059>,
+%%           #{},
+%%       {undefined,
+%%        undefined},
+%%       {0,
+%%        nil},
+%%       {0,
+%%        nil},
+%%       undefined,
+%%       1,
+%%       "mosqsub|73961-morgana",
+%%       true,
+%%       undefined,
+%%       {<0.465.0>,
+%%            undefined},
+%%       <0.458.0>,
+%%           <<"amq.topic">>,
+%%       {amqp_adapter_info,
+%%        {0,0,
+%%         0,0,
+%%         0,0,
+%%         0,1},
+%%        1883,
+%%        {0,0,
+%%         0,0,
+%%         0,0,
+%%         0,1},
+%%        55200,
+%%        <<"[::1]:55200 -> [::1]:1883">>,
+%%        {'MQTT',
+%%         "N/A"},
+%%        [{variable_map,
+%%          #{<<"client_id">> =>
+%%                <<"mosqsub|73961-morgana">>}},
+%%         {channels,
+%%          1},
+%%         {channel_max,
+%%          1},
+%%         {frame_max,
+%%          0},
+%%         {client_properties,
+%%          [{<<"product">>,
+%%            longstr,
+%%            <<"MQTT client">>}]},
+%%         {ssl,
+%%          false}]},
+%%       none,
+%%       <0.391.0>,
+%%           {auth_state,
+%%            <<"guest">>,
+%%            {user,
+%%             <<"guest">>,
+%%             [administrator],
+%%             [{rabbit_auth_backend_internal,
+%%               none}]},
+%%            <<"/">>},
+%%       #Fun<rabbit_mqtt_processor.0.125696231>}}
 maybe_clean_sess(PState = #proc_state { clean_sess = true,
                                         connection = Conn,
                                         client_id  = ClientId }) ->
@@ -458,6 +607,7 @@ session_present(Channel, ClientId)  ->
         _                     -> false
     end.
 
+%% (<0.455.0>) call rabbit_mqtt_processor:make_will_msg({mqtt_frame_connect,3,false,0,false,true,60,"mosqsub|73961-morgana",undefined, undefined,undefined,undefined})
 make_will_msg(#mqtt_frame_connect{ will_flag   = false }) ->
     undefined;
 make_will_msg(#mqtt_frame_connect{ will_retain = Retain,
@@ -470,12 +620,27 @@ make_will_msg(#mqtt_frame_connect{ will_retain = Retain,
                dup     = false,
                payload = Msg }.
 
+%% call (<<"guest">>,<<"guest">>,3,#proc_state.adapter_info#amqp_adapter_info.additional_info.append[{variable_map,#{<<"client_id">> => <<"mosqsub|73961-morgana">>}]}
+%% (<0.650.0>) returned from rabbit_mqtt_processor:process_login/4 ->
+%%     {0,
+%%      <0.653.0>,
+%%          <<"/">>,
+%%      {auth_state,
+%%       <<"guest">>,
+%%       {user,
+%%        <<"guest">>,
+%%        [administrator],
+%%        [{rabbit_auth_backend_internal,
+%%          none}]},
+%%       <<"/">>}}
 process_login(UserBin, PassBin, ProtoVersion,
               #proc_state{ channels     = {undefined, undefined},
                            socket       = Sock,
                            adapter_info = AdapterInfo,
                            ssl_login_name = SslLoginName}) ->
     {ok, {_, _, _, ToPort}} = rabbit_net:socket_ends(Sock, inbound),
+    %% call get_vhost(<<"guest">>,none,1883)
+    %% returned {default_vhost, {<<"/">>, <<"guest">>}}
     {VHostPickedUsing, {VHost, UsernameBin}} = get_vhost(UserBin, SslLoginName, ToPort),
     rabbit_log_connection:info(
         "MQTT vhost picked using ~s~n",
@@ -486,12 +651,25 @@ process_login(UserBin, PassBin, ProtoVersion,
                 username     = UsernameBin,
                 password     = PassBin,
                 virtual_host = VHost,
+                %% call (_, 3)
+                %% returned #amqp_adapter_info.protocol = {'MQTT', "3.1.0"}
                 adapter_info = set_proto_version(AdapterInfo, ProtoVersion)}) of
                 {ok, Connection} ->
                     case rabbit_access_control:check_user_loopback(UsernameBin, Sock) of
                         ok          ->
                             [{internal_user, InternalUser}] = amqp_connection:info(
                                 Connection, [internal_user]),
+                            %% (<0.455.0>) returned process_login/4 -> {0,
+                            %%     <0.458.0>,
+                            %%     <<"/">>,
+                            %%     {auth_state,
+                            %%      <<"guest">>,
+                            %%      {user,
+                            %%       <<"guest">>,
+                            %%       [administrator],
+                            %%       [{rabbit_auth_backend_internal,
+                            %%         none}]},
+                            %%      <<"/">>}}
                             {?CONNACK_ACCEPT, Connection, VHost,
                                 #auth_state{user = InternalUser,
                                     username = UsernameBin,
@@ -527,6 +705,8 @@ process_login(UserBin, PassBin, ProtoVersion,
     end.
 
 get_vhost(UserBin, none, Port) ->
+    %% call get_vhost_no_ssl(<<"guest">>,1883)
+    %% returned {default_vhost, {<<"/">>, <<"guest">>}}
     get_vhost_no_ssl(UserBin, Port);
 get_vhost(UserBin, undefined, Port) ->
     get_vhost_no_ssl(UserBin, Port);
@@ -534,6 +714,8 @@ get_vhost(UserBin, SslLogin, Port) ->
     get_vhost_ssl(UserBin, SslLogin, Port).
 
 get_vhost_no_ssl(UserBin, Port) ->
+    %% call vhost_in_username(<<"guest">>)
+    %% returned false
     case vhost_in_username(UserBin) of
         true  ->
             {vhost_in_username_or_default, get_vhost_username(UserBin)};
@@ -541,6 +723,8 @@ get_vhost_no_ssl(UserBin, Port) ->
             PortVirtualHostMapping = rabbit_runtime_parameters:value_global(
                 mqtt_port_to_vhost_mapping
             ),
+            %% call get_vhost_from_port_mapping(1883,not_found)
+            %% returned get_vhost_from_port_mapping/2 -> undefined
             case get_vhost_from_port_mapping(Port, PortVirtualHostMapping) of
                 undefined ->
                     {default_vhost, {rabbit_mqtt_util:env(vhost), UserBin}};
@@ -668,6 +852,88 @@ delivery_mode(?QOS_1) -> 2.
 %% with appropriate durability and timeout arguments
 %% this will lead to duplicate messages for overlapping subscriptions
 %% with different qos values - todo: prevent duplicates
+%% (<0.455.0>) call rabbit_mqtt_processor:ensure_queue(
+%%                    1,
+%%                    {proc_state,#Port<0.13059>,#{},
+%%                     {undefined,undefined},
+%%                     {0,nil},
+%%                     {0,nil},
+%%                     undefined,1,"mosqsub|73961-morgana",true,undefined,
+%%                     {<0.465.0>,undefined},
+%%                     <0.458.0>,<<"amq.topic">>,
+%%     {amqp_adapter_info,
+%%         {0,0,0,0,0,0,0,1},
+%%         1883,
+%%         {0,0,0,0,0,0,0,1},
+%%         55200,<<"[::1]:55200 -> [::1]:1883">>,
+%%         {'MQTT',"N/A"},
+%%         [{variable_map,#{<<"client_id">> => <<"mosqsub|73961-morgana">>}},
+%%          {channels,1},
+%%          {channel_max,1},
+%%          {frame_max,0},
+%%          {client_properties,[{<<"product">>,longstr,<<"MQTT client">>}]},
+%%          {ssl,false}]},
+%%     none,<0.391.0>,
+%%     {auth_state,<<"guest">>,
+%%         {user,<<"guest">>,
+%%             [administrator],
+%%             [{rabbit_auth_backend_internal,none}]},
+%%         <<"/">>},
+%%     #Fun<rabbit_mqtt_processor.0.125696231>})
+%% (<0.455.0>) returned from rabbit_mqtt_processor:ensure_queue/2 ->
+%% {<<"mqtt-subscription-mosqsub|73961-morganaqos1">>,
+%%  {proc_state,
+%%   #Port<0.13059>,
+%%       #{},
+%%   {undefined,
+%%    <<"amq.ctag-RAx_bYMpzjZpx4nziPVN5g">>},
+%%   {0,nil},
+%%   {0,nil},
+%%   undefined,
+%%   1,
+%%   "mosqsub|73961-morgana",
+%%   true,
+%%   undefined,
+%%   {<0.465.0>,
+%%        undefined},
+%%   <0.458.0>,
+%%       <<"amq.topic">>,
+%%   {amqp_adapter_info,
+%%    {0,0,0,0,
+%%     0,0,0,1},
+%%    1883,
+%%    {0,0,0,0,
+%%     0,0,0,1},
+%%    55200,
+%%    <<"[::1]:55200 -> [::1]:1883">>,
+%%    {'MQTT',
+%%     "N/A"},
+%%    [{variable_map,
+%%      #{<<"client_id">> =>
+%%            <<"mosqsub|73961-morgana">>}},
+%%     {channels,
+%%      1},
+%%     {channel_max,
+%%      1},
+%%     {frame_max,
+%%      0},
+%%     {client_properties,
+%%      [{<<"product">>,
+%%        longstr,
+%%        <<"MQTT client">>}]},
+%%     {ssl,
+%%      false}]},
+%%   none,
+%%   <0.391.0>,
+%%       {auth_state,
+%%        <<"guest">>,
+%%        {user,
+%%         <<"guest">>,
+%%         [administrator],
+%%         [{rabbit_auth_backend_internal,
+%%           none}]},
+%%        <<"/">>},
+%%   #Fun<rabbit_mqtt_processor.0.125696231>}}
 ensure_queue(Qos, #proc_state{ channels      = {Channel, _},
                                client_id     = ClientId,
                                clean_sess    = CleanSess,
@@ -793,6 +1059,7 @@ adapter_info(Sock, ProtoName) ->
 
 set_proto_version(AdapterInfo = #amqp_adapter_info{protocol = {Proto, _}}, Vsn) ->
     AdapterInfo#amqp_adapter_info{protocol = {Proto,
+        %% 3 -> "3.1.0"
         human_readable_mqtt_version(Vsn)}}.
 
 human_readable_mqtt_version(3) ->
