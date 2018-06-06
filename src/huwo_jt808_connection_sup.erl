@@ -1,19 +1,13 @@
-%% The contents of this file are subject to the Mozilla Public License
-%% Version 1.1 (the "License"); you may not use this file except in
-%% compliance with the License. You may obtain a copy of the License
-%% at http://www.mozilla.org/MPL/
+%%  Copyright © 2018 LUO TAO <lotreal@gmail.com>
 %%
-%% Software distributed under the License is distributed on an "AS IS"
-%% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
-%% the License for the specific language governing rights and
-%% limitations under the License.
+%%   ___  ___  ___  ___  ___       __   ________  ___  ________  _________
+%%  |\  \|\  \|\  \|\  \|\  \     |\  \|\   __  \|\  \|\   __  \|\___   ___\
+%%  \ \  \\\  \ \  \\\  \ \  \    \ \  \ \  \|\  \ \  \ \  \|\  \|___ \  \_|
+%%   \ \   __  \ \  \\\  \ \  \  __\ \  \ \  \\\  \ \  \ \  \\\  \   \ \  \
+%%    \ \  \ \  \ \  \\\  \ \  \|\__\_\  \ \  \\\  \ \  \ \  \\\  \   \ \  \
+%%     \ \__\ \__\ \_______\ \____________\ \_______\ \__\ \_______\   \ \__\
+%%      \|__|\|__|\|_______|\|____________|\|_______|\|__|\|_______|    \|__|
 %%
-%% The Original Code is RabbitMQ.
-%%
-%% The Initial Developer of the Original Code is GoPivotal, Inc.
-%% Copyright (c) 2007-2017 Pivotal Software, Inc.  All rights reserved.
-%%
-
 -module(huwo_jt808_connection_sup).
 
 -behaviour(supervisor2).
@@ -26,9 +20,10 @@
 -export([init/1]).
 
 %%----------------------------------------------------------------------------
-
+%% called by ranch_conns_sup:loop/4({acceptor, {0,0,0,0,0,0,0}, 1883}, #Port<rabbit@morganna.18500>, ranch_tcp, [])
 start_link(Ref, Sock, _Transport, []) ->
     {ok, SupPid} = supervisor2:start_link(?MODULE, []),
+    %% {ok, #Pid<rabbit@morgana.912.0>}
     {ok, KeepaliveSup} = supervisor2:start_child(
                           SupPid,
                           {huwo_jt808_keepalive_sup,
@@ -39,6 +34,7 @@ start_link(Ref, Sock, _Transport, []) ->
                         {huwo_jt808_reader,
                          {huwo_jt808_reader, start_link, [KeepaliveSup, Ref, Sock]},
                          intrinsic, ?WORKER_WAIT, worker, [huwo_jt808_reader]}),
+    %% {ok, #Pid<rabbit@morgana.911.0>, #Pid<rabbit@morgana.913.0>}
     {ok, SupPid, ReaderPid}.
 
 start_keepalive_link() ->

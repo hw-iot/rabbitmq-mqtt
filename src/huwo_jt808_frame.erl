@@ -69,7 +69,9 @@ parse_body(#huwo_jt808_frame_header{ id = ?CONNECT }, Body) ->
     ?PARSE_STRING0(Rest5,    PhoneModel,  Rest6),
     ?PARSE_STRING0(Rest6,    ProtoVer,    Rest7),
     ?PARSE_UINT8  (Rest7,    WorkMode,    _Rest8),
+    ClientId = rabbit_data_coercion:to_list(<< (integer_to_binary(ClientType))/binary, Mobile/binary >>),
     {ok, #huwo_jt808_frame_connect{
+	    client_id = ClientId,
             mobile = Mobile,
             client_name = ClientName,
             username = Username,

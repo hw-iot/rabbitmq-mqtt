@@ -5,17 +5,29 @@
 -define(ESCAPED_3D, <<16#3D, 16#01>>).
 
 -define(STRING0(Val), (list_to_binary(Val))/binary, <<0,0>>/binary).
+%% TODO return string?
+%% returned binary
 -define(PARSE_STRING0(Payload, Key, Rest), [Key, Rest] = binary:split(Payload, [<<0,0>>])).
+%% returned int
 -define(PARSE_UINT8(Payload, Key, Rest), << Key:8, Rest/binary >> = Payload).
+
+-define(CLIENTACK,  16#0001).
+-define(SERVERACK,  16#8001).
 
 -define(CONNECT,    16#0103).
 -define(DISCONNECT, 16#0108).
--define(CLIENTACK,  16#0001).
--define(SERVERACK,  16#8001).
+
 -define(GATEWAY,    16#0102).
 -define(HEARTBEAT,  16#0105).
 -define(GPSV1,      16#0203).
 -define(GPSV2,      16#0205).
+
+-define(NEARBYCLIENT,  16#A201).
+-define(REQEST_OK ,    16#B201).
+-define(REQUEST_ERROR, 16#8001).
+
+-define(PUSHACK ,  16#0001). % = CLIENTACK
+-define(PUSH ,  16#8500).
 
 %% connect return codes
 -define(CONNACK_ACCEPT,      0).
@@ -61,7 +73,7 @@
           sn }).
 
 -record(huwo_jt808_frame_connect,
-        { client_id,
+	{ client_id, % = client_type + mobile
           mobile,
           client_name,
           username,

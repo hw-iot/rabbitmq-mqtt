@@ -10,15 +10,46 @@
 -include_lib("amqp_client/include/amqp_client.hrl").
 -include("rabbit_mqtt.hrl").
 -include("huwo_jt808.hrl").
--include("include/huwo_jt808_frame.hrl").
-
-
+-include("huwo_jt808_frame.hrl").
 
 -define(APP, rabbitmq_jt808).
 %% ?FRAME_TYPE ~= ?FRAME
 %% -define(FRAME_TYPE(Frame, Type),
+%%         Frame = #mqtt_frame{ fixed = #mqtt_frame_fixed{ type = Type }}).
 
-
+%% call(#Port<rabbit@morgana.18500>, none)
+%% returned:
+%% #proc_state{
+%%    socket = #Port<rabbit@morgana.18500>,
+%%    subscriptions = #{},
+%%    consumer_tags = {undefined, undefined},
+%%    unacked_pubs = {0,nil},
+%%    awaiting_ack = {0,nil},
+%%    awaiting_seqno = undefined,
+%%    message_id = 1,
+%%    client_id = undefined,
+%%    clean_sess = undefined,
+%%    will_msg = undefined,
+%%    channels = {undefined, undefined},
+%%    connection = undefined,
+%%    exchange = <<"amq.topic">>,
+%%    adapter_info = #amqp_adapter_info{
+%%       host = {0,0,0,0,0,0,0,1},
+%%       port = 1883,
+%%       peer_host = {0,0,0,0,0,0,0,1},
+%%       peer_port = 60266,
+%%       name = <<"[::1]:60266 -> [::1]:1883">>,
+%%       protocol = {'JT808', "N/A"},
+%%       additional_info = [{channels, 1},
+%%                          {channel_max, 1},
+%%                          {frame_max, 0},
+%%                          {client_properties,
+%%                           [{<<"product">>, longstr, <<"JT808 client">>}]},
+%%                          {ssl, false}]},
+%%    ssl_login_name = none,
+%%    retainer_pid = undefined,
+%%    auth_state = undefined,
+%%    send_fun #Fun<rabbit_mqtt_processor.0.11017165>}
 initial_state(Socket, SSLLoginName) ->
     RealSocket = rabbit_net:unwrap_socket(Socket),
     initial_state(RealSocket, SSLLoginName,
@@ -52,25 +83,32 @@ initial_state(Socket, SSLLoginName,
 %% 开始处理包
 %% 消息头已解析，可以取得消息类型MsgID。消息体 Payload 为二进制，待进一步解析
 %% 如果不是注册设备的消息，但状态中的connection没定义说明没有注册就发送其他信息
-%% process_frame(#huwo_jt808_frame{ header = #huwo_jt808_frame_header{ id = MsgId}},
-%%               PState = #proc_state{ connection = undefined }) %%
-%%             when MsgId =/= ?MSG_ID_REG ->
-%%                 {error, connect_expected, PState}.
+process_frame(#huwo_jt808_frame{
+		 header = #huwo_jt808_frame_header{ id = Type }},
+	      PState = #proc_state{ connection = undefined })
+  when Type =/= ?CONNECT ->
+    {error, connect_expected, PState};
+%% call(_, PState = initial_state:retrun:#proc_state)
 process_frame(#huwo_jt808_frame{
                  header = #huwo_jt808_frame_header{
                              id = MsgID}} = Frame, PState) ->
-    ?DEBUG(process_process_frame, Frame),
+    ?DEBUG(processor_process_frame_frame, Frame),
     case process_request(MsgID, Frame, PState) of
         {ok, PState1} -> {ok, PState1, PState1#proc_state.connection};
         Ret -> Ret
     end.
 
-
+%% call(?CONNECT, _, PState = initial_state:retrun:#proc_state)
+%% {huwo_jt808_frame,
+%%  {huwo_jt808_frame_header,259,0,0,0,77,201805141800,12},
+%%  {huwo_jt808_frame_connect,undefined,<<"13896079527">>,
+%%   <<"huwo-erlang-jt808-client">>,<<"user">>,<<"pass">>,0,
+%%   <<"iPhone 3G">>,<<"2.1.1OSX 10">>,<<"2.1.1OSX 10">>,1}}
 process_request(?CONNECT,
                 #huwo_jt808_frame{
                    payload = #huwo_jt808_frame_connect{
                                 client_id = ClientId0,
-                                mobile = Mobile,
+				mobile = _Mobile,
                                 client_name = _ClientName,
                                 username = Username,
                                 password = Password,
@@ -79,20 +117,20 @@ process_request(?CONNECT,
                                 proto_ver = ProtoVer,
                                 phone_os = _ProtoVer,
                                 work_mode = _WorkMode} = _Payload},
-                PState0 = #proc_state{
-                             send_fun = SendFun,
-                             ssl_login_name = SSLLoginName,
-                             adapter_info   = AdapterInfo = #amqp_adapter_info{additional_info = Extra} }) ->
-    %% ?DEBUG(process_request_connect_payload, Payload),
-    %% ?DEBUG(process_request_connect_clientid0, ClientId0),
+		PState0 = #proc_state{ ssl_login_name = SSLLoginName,
+				       send_fun       = SendFun,
+				       adapter_info   = AdapterInfo = #amqp_adapter_info{additional_info = Extra} }) ->
+    %% ClientId = "013896079527" | "IYZ-hf2cvlQdS1IqCWTmqA"
+    ?DEBUG(process_request_connect_clientid0, ClientId0),
     ClientId = case ClientId0 of
-                   undefined -> rabbit_data_coercion:to_list(Mobile);
-                   [_|_]     -> ClientId0
+		   []    -> rabbit_mqtt_util:gen_client_id();
+		   [_|_] -> ClientId0
                end,
     AdapterInfo1 = AdapterInfo#amqp_adapter_info{
                      additional_info =
                          [{variable_map, #{<<"client_id">> => rabbit_data_coercion:to_binary(ClientId)}} | Extra]},
     PState = PState0#proc_state{adapter_info = AdapterInfo1},
+    %% TODO hw-iot ----------------
     ?DEBUG(process_login_case1, {lists:member(3, proplists:get_keys(?PROTOCOL_NAMES)), ClientId =:= undefined}),
     {Return, PState1} =
         case {lists:member(3, proplists:get_keys(?PROTOCOL_NAMES)),
