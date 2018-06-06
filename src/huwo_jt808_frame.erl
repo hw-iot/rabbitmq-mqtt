@@ -5,35 +5,82 @@
 -author("Luo Tao <lotreal@gmail.com>").
 
 -export([initial_state/0]).
--export([parse/2, parse/1, serialise/1]).
+-export([parse/2, serialise/1]).
+-export([parse_content/2]).
+-export([escape/1]).
 -export([dump/1]).
 
 -include("huwo_jt808_frame.hrl").
 
+-define(MAX_LEN, 2#1111111111111).
 
 initial_state() -> none.
 
 %% API
-parse(Package, _) ->
-    parse(Package).
-
-parse(Package) ->
-    bin_utils:dump(frame_parse_package, Package),
-    Content = parse_content(Package, ?FLAG_BOUNDARY),
-    bin_utils:dump(frame_parse_content, Content),
-    <<Id:16, Property:2/binary, Timestamp:6/binary, SN:16, Rest/binary>> = Content,
+parse(<<>>, none) ->
+    {more, fun(Bin) -> parse(Bin, none) end};
+parse(<<?FLAG_BOUNDARY, Id:16, Property:2/binary, Timestamp:6/binary, SN:16, Rest/binary>>, none) ->
     <<Aes:1, Zip:1, Divide:1, Len:13>> = Property,
-    <<Payload:Len/binary, _:8>> = Rest,
-    {ok, #huwo_jt808_frame{
-            header  = #huwo_jt808_frame_header{
-                         id        = Id,
-                         aes       = Aes,
-                         zip       = Zip,
-                         divide    = Divide,
-                         length    = Len,
-                         timestamp = bin_utils:bcd_decode(Timestamp),
-                         sn        = SN},
-            payload = Payload}}.
+    Header = #huwo_jt808_frame_header{
+                id        = Id,
+                aes       = Aes,
+                zip       = Zip,
+                divide    = Divide,
+                length    = Len,
+                timestamp = bin_utils:bcd_decode(Timestamp),
+                sn        = SN},
+    parse_frame(Rest, Header, Len);
+parse(Bin, Cont) ->
+    bin_utils:dump(frame_parse_func, Cont),
+    Cont(Bin).
+
+%% Bin: received data
+%% Header: jt808 header
+%% Len: int, defined in header
+%% ->
+%% {error, Reason}
+%% {more, ParseFunc}
+%% {ok, #huwo_jt808_frame, Rest}
+parse_frame(_Bin, _Header, Len) when Len > ?MAX_LEN ->
+    {error, invalid_jt808_frame_len};
+parse_frame(<<>>, Header, Len) ->
+    {more, fun(Bin) -> parse_frame(Bin, Header, Len) end};
+parse_frame(Bin, Header, Len) ->
+    case Bin of
+        <<Body:Len/binary, _CheckSum:8, ?FLAG_BOUNDARY, Rest/binary>> ->
+            case parse_body(Header, Body) of
+                {ok, Payload} ->
+                    {ok, #huwo_jt808_frame{header = Header, payload = Payload}, Rest};
+                _ ->
+                    {error, frame_data_corrupt}
+            end;
+        TooShortBin ->
+            {more, fun(BinMore) ->
+                           parse_frame(<<TooShortBin/binary, BinMore/binary>>, Header, Len)
+                   end}
+    end.
+
+parse_body(#huwo_jt808_frame_header{ id = ?CONNECT }, Body) ->
+    ?PARSE_STRING0(Body,  Mobile,      Rest1),
+    ?PARSE_STRING0(Rest1,    ClientName,  Rest2),
+    ?PARSE_STRING0(Rest2,    Username,    Rest3),
+    ?PARSE_STRING0(Rest3,    Password,    Rest4),
+    ?PARSE_UINT8  (Rest4,    ClientType,  Rest5),
+    ?PARSE_STRING0(Rest5,    PhoneModel,  Rest6),
+    ?PARSE_STRING0(Rest6,    ProtoVer,    Rest7),
+    ?PARSE_UINT8  (Rest7,    WorkMode,    _Rest8),
+    {ok, #huwo_jt808_frame_connect{
+            mobile = Mobile,
+            client_name = ClientName,
+            username = Username,
+            password = Password,
+            client_type = ClientType,
+            phone_model = PhoneModel,
+            proto_ver = ProtoVer,
+            phone_os = ProtoVer,
+            work_mode = WorkMode}};
+parse_body(_Header, Body) ->
+    {ok, Body}.
 
 serialise(#huwo_jt808_frame{
              payload = #huwo_jt808_frame_connect{
@@ -80,12 +127,14 @@ serialise(#huwo_jt808_frame{
 %% internal
 parse_content(Frame, Flag) ->
     parse_content(Frame, Flag, <<>>).
+
 parse_content(<<Flag>>, Flag, Acc) ->
     unescape(Acc);
 parse_content(<<Flag, Rest/binary>>, Flag, Acc) ->
     parse_content(Rest, Flag, Acc);
 parse_content(<<H, Rest/binary>>, Flag, Acc) ->
     parse_content(Rest, Flag, <<Acc/binary, H>>).
+
 
 escape(Body) -> escape(Body, <<>>).
 escape(<<>>, Acc) -> Acc;

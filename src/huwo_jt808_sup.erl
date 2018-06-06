@@ -39,8 +39,8 @@ init([{Listeners, SslListeners0}]) ->
           end,
     {ok, {{one_for_all, 10, 10},
           [{collector,
-            {rabbit_mqtt_collector, start_link, []},
-            transient, ?WORKER_WAIT, worker, [rabbit_mqtt_collector]},
+            {huwo_jt808_collector, start_link, []},
+            transient, ?WORKER_WAIT, worker, [huwo_jt808_collector]},
            {rabbit_mqtt_retainer_sup,
             {rabbit_mqtt_retainer_sup, start_link, [{local, rabbit_mqtt_retainer_sup}]},
              transient, ?SUPERVISOR_WAIT, supervisor, [rabbit_mqtt_retainer_sup]} |

@@ -1,0 +1,1 @@
+-define(DEBUG(Key, Val), bin_utils:dump(Key, Val)).
