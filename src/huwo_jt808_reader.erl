@@ -73,19 +73,19 @@ init([KeepaliveSup, Ref, Sock]) ->
               self(), {?MODULE, conserve_resources, []}),
             ProcessorState = huwo_jt808_processor:initial_state(Sock,ssl_login_name(RealSocket)),
             gen_server2:enter_loop(?MODULE, [],
-				   rabbit_event:init_stats_timer(
-				     control_throttle( % 控制流量?
-				       #state{socket                 = RealSocket,
-					      conn_name              = ConnStr,
-					      await_recv             = false,
-					      connection_state       = running,
-					      received_connect_frame = false,
-					      keepalive              = {none, none},
-					      keepalive_sup          = KeepaliveSup,
-					      conserve               = false,
-					      parse_state            = huwo_jt808_frame:initial_state(), % none
-					      proc_state             = ProcessorState }), #state.stats_timer),
-				   {backoff, 1000, 1000, 10000});
+                                   rabbit_event:init_stats_timer(
+                                     control_throttle( % 控制流量?
+                                       #state{socket                 = RealSocket,
+                                              conn_name              = ConnStr,
+                                              await_recv             = false,
+                                              connection_state       = running,
+                                              received_connect_frame = false,
+                                              keepalive              = {none, none},
+                                              keepalive_sup          = KeepaliveSup,
+                                              conserve               = false,
+                                              parse_state            = huwo_jt808_frame:initial_state(), % none
+                                              proc_state             = ProcessorState }), #state.stats_timer),
+                                   {backoff, 1000, 1000, 10000});
         {network_error, Reason} ->
             rabbit_net:fast_close(RealSocket),
             terminate({shutdown, Reason}, undefined);
@@ -103,10 +103,10 @@ init([KeepaliveSup, Ref, Sock]) ->
 
 handle_call({info, InfoItems}, _From, State) ->
     Infos = lists:map(
-	      fun(InfoItem) ->
-		      {InfoItem, info_internal(InfoItem, State)}
-	      end,
-	      InfoItems),
+              fun(InfoItem) ->
+                      {InfoItem, info_internal(InfoItem, State)}
+              end,
+              InfoItems),
     {reply, Infos, State};
 
 handle_call(Msg, From, State) ->
@@ -116,7 +116,7 @@ handle_cast(duplicate_id, % 断开重复连接
             State = #state{ proc_state = PState,
                             conn_name  = ConnName }) ->
     rabbit_log_connection:warning("Huwo JT808 disconnecting duplicate client id ~p (~p)~n",
-				  [huwo_jt808_processor:info(client_id, PState), ConnName]),
+                                  [huwo_jt808_processor:info(client_id, PState), ConnName]),
     {stop, {shutdown, duplicate_id}, State};
 
 handle_cast(Msg, State) ->
@@ -129,7 +129,7 @@ handle_cast(Msg, State) ->
 handle_info({#'basic.deliver'{}, #amqp_msg{}, _DeliveryCtx} = Delivery,
             State = #state{ proc_state = ProcState }) ->
     callback_reply(State, huwo_jt808_processor:amqp_callback(Delivery,
-							     ProcState));
+                                                             ProcState));
 
 handle_info(#'basic.ack'{} = Ack, State = #state{ proc_state = ProcState }) ->
     callback_reply(State, huwo_jt808_processor:amqp_callback(Ack, ProcState));
@@ -198,39 +198,39 @@ terminate(Reason, State) ->
 
 do_terminate({network_error, {ssl_upgrade_error, closed}, ConnStr}, _State) ->
     rabbit_log_connection:error("Huwo JT808 detected TLS upgrade error on ~s: connection closed~n",
-				[ConnStr]);
+                                [ConnStr]);
 
 do_terminate({network_error,
-	      {ssl_upgrade_error,
-	       {tls_alert, "handshake failure"}}, ConnStr}, _State) ->
+              {ssl_upgrade_error,
+               {tls_alert, "handshake failure"}}, ConnStr}, _State) ->
     rabbit_log_connection:error("Huwo JT808 detected TLS upgrade error on ~s: handshake failure~n",
-				[ConnStr]);
+                                [ConnStr]);
 
 do_terminate({network_error,
-	      {ssl_upgrade_error,
-	       {tls_alert, "unknown ca"}}, ConnStr}, _State) ->
+              {ssl_upgrade_error,
+               {tls_alert, "unknown ca"}}, ConnStr}, _State) ->
     rabbit_log_connection:error("Huwo JT808 detected TLS certificate verification error on ~s: alert 'unknown CA'~n",
-				[ConnStr]);
+                                [ConnStr]);
 
 do_terminate({network_error,
-	      {ssl_upgrade_error,
-	       {tls_alert, Alert}}, ConnStr}, _State) ->
+              {ssl_upgrade_error,
+               {tls_alert, Alert}}, ConnStr}, _State) ->
     rabbit_log_connection:error("Huwo JT808 detected TLS upgrade error on ~s: alert ~s~n",
-				[ConnStr, Alert]);
+                                [ConnStr, Alert]);
 
 do_terminate({network_error, {ssl_upgrade_error, Reason}, ConnStr}, _State) ->
     rabbit_log_connection:error("Huwo JT808 detected TLS upgrade error on ~s: ~p~n",
-				[ConnStr, Reason]);
+                                [ConnStr, Reason]);
 
 do_terminate({network_error, Reason, ConnStr}, _State) ->
     rabbit_log_connection:error("Huwo JT808 detected network error on ~s: ~p~n",
-				[ConnStr, Reason]);
+                                [ConnStr, Reason]);
 
 do_terminate({network_error, Reason}, _State) ->
     rabbit_log_connection:error("Huwo JT808 detected network error: ~p~n", [Reason]);
 
 do_terminate(normal, #state{proc_state = ProcState,
-			    conn_name  = ConnName}) ->
+                            conn_name  = ConnName}) ->
     huwo_jt808_processor:close_connection(ProcState),
     rabbit_log_connection:info("closing JT808 connection ~p (~s)~n", [self(), ConnName]),
     ok;
@@ -245,13 +245,13 @@ code_change(_OldVsn, State, _Extra) ->
 %% returned none
 ssl_login_name(Sock) ->
     case rabbit_net:peercert(Sock) of
-	{ok, C}              -> case rabbit_ssl:peer_cert_auth_name(C) of
+        {ok, C}              -> case rabbit_ssl:peer_cert_auth_name(C) of
                                     unsafe    -> none;
                                     not_found -> none;
                                     Name      -> Name
                                 end;
-	{error, no_peercert} -> none;
-	nossl                -> none
+        {error, no_peercert} -> none;
+        nossl                -> none
     end.
 
 %%----------------------------------------------------------------------------
@@ -272,41 +272,41 @@ process_received_bytes(<<>>, State) ->
 process_received_bytes(Bytes,
                        State = #state{ parse_state = ParseState,
                                        proc_state  = ProcState,
-				       conn_name   = ConnStr }) ->
+                                       conn_name   = ConnStr }) ->
     case parse(Bytes, ParseState) of
         {more, ParseState1} ->
             {noreply,
              ensure_stats_timer(control_throttle( State #state{ parse_state = ParseState1 })),
              hibernate};
         {ok, Frame, _Rest}->
-	    %% TODO
-	    %% case rabbit_mqtt_processor:process_frame(Frame, ProcState) of
-	    %%     {ok, ProcState1, ConnPid} ->
-	    %%         PS = rabbit_mqtt_frame:initial_state(),
-	    %%         process_received_bytes(
-	    %%           Rest,
-	    %%           State #state{ parse_state = PS,
-	    %%                         proc_state = ProcState1,
-	    %%                         connection = ConnPid });
-	    %%     {error, Reason, ProcState1} ->
-	    %%         rabbit_log_connection:info("MQTT protocol error ~p for connection ~s~n",
-	    %%             [Reason, ConnStr]),
-	    %%         {stop, {shutdown, Reason}, pstate(State, ProcState1)};
-	    %%     {error, Error} ->
-	    %%         rabbit_log_connection:error("MQTT detected framing error '~p' for connection ~s~n",
-	    %%             [Error, ConnStr]),
-	    %%         {stop, {shutdown, Error}, State};
-	    %%     {stop, ProcState1} ->
-	    %%         {stop, normal, pstate(State, ProcState1)};
-	    %%     {err, unauthorized = Reason, ProcState1} ->
-	    %%         {stop, {shutdown, Reason}, pstate(State, ProcState1)}
-	    %% end;
+            %% TODO
+            %% case rabbit_mqtt_processor:process_frame(Frame, ProcState) of
+            %%     {ok, ProcState1, ConnPid} ->
+            %%         PS = rabbit_mqtt_frame:initial_state(),
+            %%         process_received_bytes(
+            %%           Rest,
+            %%           State #state{ parse_state = PS,
+            %%                         proc_state = ProcState1,
+            %%                         connection = ConnPid });
+            %%     {error, Reason, ProcState1} ->
+            %%         rabbit_log_connection:info("MQTT protocol error ~p for connection ~s~n",
+            %%             [Reason, ConnStr]),
+            %%         {stop, {shutdown, Reason}, pstate(State, ProcState1)};
+            %%     {error, Error} ->
+            %%         rabbit_log_connection:error("MQTT detected framing error '~p' for connection ~s~n",
+            %%             [Error, ConnStr]),
+            %%         {stop, {shutdown, Error}, State};
+            %%     {stop, ProcState1} ->
+            %%         {stop, normal, pstate(State, ProcState1)};
+            %%     {err, unauthorized = Reason, ProcState1} ->
+            %%         {stop, {shutdown, Reason}, pstate(State, ProcState1)}
+            %% end;
             huwo_jt808_processor:process_frame(Frame, ProcState),
             {noreply, ensure_stats_timer(State#state{ received_connect_frame = true }), hibernate};
-	{error, {cannot_parse, Error, Stacktrace}} ->
-	    rabbit_log_connection:error("JT808 cannot parse frame for connection '~s', unparseable payload: ~p, error: {~p, ~p} ~n",
-					[ConnStr, Bytes, Error, Stacktrace]),
-	    {stop, {shutdown, Error}, State};
+        {error, {cannot_parse, Error, Stacktrace}} ->
+            rabbit_log_connection:error("JT808 cannot parse frame for connection '~s', unparseable payload: ~p, error: {~p, ~p} ~n",
+                                        [ConnStr, Bytes, Error, Stacktrace]),
+            {stop, {shutdown, Error}, State};
         {error, Error} ->
             rabbit_log_connection:error("JT808 detected framing error '~p'~n",
                                         [Error]),
@@ -328,11 +328,11 @@ pstate(State = #state {}, PState = #proc_state{}) ->
 %% call(_, none)
 parse(Bytes, ParseState) ->
     try
-	?DEBUG(reader_parse_bytes, Bytes),
-	huwo_jt808_frame:parse(Bytes, ParseState)
+        ?DEBUG(reader_parse_bytes, Bytes),
+        huwo_jt808_frame:parse(Bytes, ParseState)
     catch
-	_:Reason ->
-	    {error, {cannot_parse, Reason, erlang:get_stacktrace()}}
+        _:Reason ->
+            {error, {cannot_parse, Reason, erlang:get_stacktrace()}}
     end.
 
 %%----------------------------------------------------------------------------
@@ -381,7 +381,7 @@ control_throttle(State = #state{ connection_state = Flow,
         {blocked,  false} -> ok = rabbit_heartbeat:resume_monitor(
                                     State#state.keepalive),
                              run_socket(State #state{
-					  connection_state = running });
+                                          connection_state = running });
         {_,            _} -> run_socket(State)
     end.
 
@@ -389,13 +389,13 @@ maybe_process_deferred_recv(State = #state{ deferred_recv = undefined }) ->
     {noreply, State, hibernate};
 maybe_process_deferred_recv(State = #state{ deferred_recv = Data, socket = Sock }) ->
     handle_info({inet_async, Sock, noref, {ok, Data}},
-		State#state{ deferred_recv = undefined }).
+                State#state{ deferred_recv = undefined }).
 
 maybe_emit_stats(undefined) ->
     ok;
 maybe_emit_stats(State) ->
     rabbit_event:if_enabled(State, #state.stats_timer,
-			    fun() -> emit_stats(State) end).
+                            fun() -> emit_stats(State) end).
 
 emit_stats(State=#state{connection = C}) when C == none; C == undefined ->
     %% Avoid emitting stats on terminate when the connection has not yet been
@@ -404,7 +404,7 @@ emit_stats(State=#state{connection = C}) when C == none; C == undefined ->
     ensure_stats_timer(State1);
 emit_stats(State) ->
     [{_, Pid}, {_, Recv_oct}, {_, Send_oct}, {_, Reductions}] = I
-	= infos(?SIMPLE_METRICS, State),
+        = infos(?SIMPLE_METRICS, State),
     Infos = infos(?OTHER_METRICS, State),
     rabbit_core_metrics:connection_stats(Pid, Infos),
     rabbit_core_metrics:connection_stats(Pid, Recv_oct, Send_oct, Reductions),

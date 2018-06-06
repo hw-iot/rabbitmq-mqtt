@@ -84,8 +84,8 @@ initial_state(Socket, SSLLoginName,
 %% 消息头已解析，可以取得消息类型MsgID。消息体 Payload 为二进制，待进一步解析
 %% 如果不是注册设备的消息，但状态中的connection没定义说明没有注册就发送其他信息
 process_frame(#huwo_jt808_frame{
-		 header = #huwo_jt808_frame_header{ id = Type }},
-	      PState = #proc_state{ connection = undefined })
+                 header = #huwo_jt808_frame_header{ id = Type }},
+              PState = #proc_state{ connection = undefined })
   when Type =/= ?CONNECT ->
     {error, connect_expected, PState};
 %% call(_, PState = initial_state:retrun:#proc_state)
@@ -108,30 +108,30 @@ process_request(?CONNECT,
                 #huwo_jt808_frame{
                    payload = #huwo_jt808_frame_connect{
                                 client_id = ClientId0,
-				mobile = _Mobile,
+                                mobile = _Mobile,
                                 client_name = _ClientName,
                                 username = Username,
                                 password = Password,
-                                client_type = _gClientType,
+                                client_type = _ClientType,
                                 phone_model = _PhoneModel,
                                 proto_ver = ProtoVer,
                                 phone_os = _ProtoVer,
                                 work_mode = _WorkMode} = _Payload},
-		PState0 = #proc_state{ ssl_login_name = SSLLoginName,
-				       send_fun       = SendFun,
-				       adapter_info   = AdapterInfo = #amqp_adapter_info{additional_info = Extra} }) ->
+                PState0 = #proc_state{ ssl_login_name = SSLLoginName,
+                                       send_fun       = SendFun,
+                                       adapter_info   = AdapterInfo = #amqp_adapter_info{additional_info = Extra} }) ->
     %% ClientId = "013896079527" | "IYZ-hf2cvlQdS1IqCWTmqA"
     ?DEBUG(process_request_connect_clientid0, ClientId0),
     ClientId = case ClientId0 of
-		   []    -> rabbit_mqtt_util:gen_client_id();
-		   [_|_] -> ClientId0
+                   []    -> rabbit_mqtt_util:gen_client_id();
+                   [_|_] -> ClientId0
                end,
     AdapterInfo1 = AdapterInfo#amqp_adapter_info{
                      additional_info =
                          [{variable_map, #{<<"client_id">> => rabbit_data_coercion:to_binary(ClientId)}} | Extra]},
     PState = PState0#proc_state{adapter_info = AdapterInfo1},
     %% TODO hw-iot ----------------
-    ?DEBUG(process_login_case1, {lists:member(3, proplists:get_keys(?PROTOCOL_NAMES)), ClientId =:= undefined}),
+    ?DEBUG(process_login_case1, {lists:member(ProtoVer, proplists:get_keys(?PROTOCOL_NAMES)), ClientId =:= undefined}),
     {Return, PState1} =
         case {lists:member(3, proplists:get_keys(?PROTOCOL_NAMES)),
               ClientId =:= undefined} of

@@ -52,16 +52,16 @@ test_send_package() ->
 
 test_serialise_connect_frame()->
     Request = ?NEW_FRAME(#huwo_jt808_frame_connect{
-                                mobile = "13896079527",
-                                client_name = "huwo-erlang-jt808-client",
-                                username = "user",
-                                password = "pass",
-                                client_type = 0,
-                                phone_model = "iPhone 3G",
-                                proto_ver = "2.1.1",
-                                phone_os = "OSX 10",
-                                work_mode = 1
-                               }, 12),
+                            mobile = "13896079527",
+                            client_name = "huwo-jt808-erlang-client",
+                            username = "user",
+                            password = "pass",
+                            client_type = 2,
+                            phone_model = "iPhone 3G",
+                            proto_ver = "201.1.1-huwo",
+                            phone_os = "OSX 10",
+                            work_mode = 1
+                           }, 12),
 
     Frame = huwo_jt808_frame:serialise(Request),
     bin_utils:dump(frame, Frame),
@@ -70,45 +70,23 @@ test_serialise_connect_frame()->
 
 test_parse_connect_frame()->
     Request0 = ?NEW_FRAME(#huwo_jt808_frame_connect{
-                            mobile = "13896079527",
-                            client_name = "huwo-erlang-jt808-client",
-                            username = "user",
-                            password = "pass",
-                            client_type = 0,
-                            phone_model = "iPhone 3G",
-                            proto_ver = "2.1.1",
-                            phone_os = "OSX 10",
-                            work_mode = 1
-                           }, 12),
+                             mobile = "13896079527",
+                             client_name = "huwo-jt808-erlang-client",
+                             username = "user",
+                             password = "pass",
+                             client_type = 2,
+                             phone_model = "iPhone 3G",
+                             proto_ver = "201.1.1-huwo",
+                             phone_os = "OSX 10",
+                             work_mode = 1
+                            }, 12),
 
     Frame = huwo_jt808_frame:serialise(Request0),
     bin_utils:dump(frame, Frame),
 
     %% parse connect frame
-    {ok, Request} = huwo_jt808_frame:parse(Frame),
+    {ok, Request, _Rest} = huwo_jt808_frame:parse(Frame, none),
     huwo_jt808_frame:dump(Request),
-
-    Payload = Request#huwo_jt808_frame.payload,
-    ?PARSE_STRING0(Payload,  Mobile,      Rest1),
-    ?PARSE_STRING0(Rest1,    ClientName,  Rest2),
-    ?PARSE_STRING0(Rest2,    Username,    Rest3),
-    ?PARSE_STRING0(Rest3,    Password,    Rest4),
-    ?PARSE_UINT8  (Rest4,    ClientType,  Rest5),
-    ?PARSE_STRING0(Rest5,    PhoneModel,  Rest6),
-    ?PARSE_STRING0(Rest6,    ProtoVer,    Rest7),
-    ?PARSE_UINT8  (Rest7,    WorkMode,    Rest8),
-    Record = #huwo_jt808_frame_connect{
-                mobile = Mobile,
-                client_name = ClientName,
-                username = Username,
-                password = Password,
-                client_type = ClientType,
-                phone_model = PhoneModel,
-                proto_ver = ProtoVer,
-                %% phone_os = PhoneOS,
-                work_mode = WorkMode
-               },
-    bin_utils:dump(record, Record),
     ok.
 
 main(_) ->

@@ -68,10 +68,11 @@ parse_body(#huwo_jt808_frame_header{ id = ?CONNECT }, Body) ->
     ?PARSE_UINT8  (Rest4,    ClientType,  Rest5),
     ?PARSE_STRING0(Rest5,    PhoneModel,  Rest6),
     ?PARSE_STRING0(Rest6,    ProtoVer,    Rest7),
-    ?PARSE_UINT8  (Rest7,    WorkMode,    _Rest8),
-    ClientId = rabbit_data_coercion:to_list(<< (integer_to_binary(ClientType))/binary, Mobile/binary >>),
+    ?PARSE_STRING0(Rest7,    ProtoOS,     Rest8),
+    ?PARSE_UINT8  (Rest8,    WorkMode,    _),
+    ClientId = binary_to_list(<< (integer_to_binary(ClientType))/binary, Mobile/binary >>),
     {ok, #huwo_jt808_frame_connect{
-	    client_id = ClientId,
+            client_id = ClientId,
             mobile = Mobile,
             client_name = ClientName,
             username = Username,
@@ -79,7 +80,7 @@ parse_body(#huwo_jt808_frame_header{ id = ?CONNECT }, Body) ->
             client_type = ClientType,
             phone_model = PhoneModel,
             proto_ver = ProtoVer,
-            phone_os = ProtoVer,
+            phone_os = ProtoOS,
             work_mode = WorkMode}};
 parse_body(_Header, Body) ->
     {ok, Body}.
@@ -98,7 +99,7 @@ serialise(#huwo_jt808_frame{
                          }} = Request) ->
     Payload = <<?STRING0(Mobile),
                 ?STRING0(ClientName), ?STRING0(Username), ?STRING0(Password), ClientType:8,
-                ?STRING0(PhoneModel), ?STRING0([ ProtoVer | PhoneOS ]),
+                ?STRING0(PhoneModel), ?STRING0(ProtoVer), ?STRING0(PhoneOS),
                 WorkMode:8>>,
     serialise(?FRAME(?CONNECT, Request, Payload));
 

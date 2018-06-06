@@ -1,4 +1,4 @@
--define(PROTOCOL_NAMES,  [{3, "JT808 3"}, {4, "JT808 4"}]).
+-define(PROTOCOL_NAMES,  [{3, "JT808 3"}, {<<"201.1.1-huwo">>, "JT808-201.1-huwo"}]).
 
 -define(FLAG_BOUNDARY, 16#3E).
 -define(ESCAPED_3E, <<16#3D, 16#02>>).
@@ -64,25 +64,29 @@
 -record(huwo_jt808_frame, {header, payload}).
 
 -record(huwo_jt808_frame_header,
-        { id,
-          aes     = 0,
-          zip     = 0,
-          divide  = 0,
-          length,
-          timestamp,
-          sn }).
+        {
+         id,
+         aes     = 0,
+         zip     = 0,
+         divide  = 0,
+         length,
+         timestamp,
+         sn
+        }).
 
 -record(huwo_jt808_frame_connect,
-	{ client_id, % = client_type + mobile
-          mobile,
-          client_name,
-          username,
-          password,
-          client_type,
-          phone_model,
-          proto_ver,
-          phone_os,
-          work_mode = 0 }).
+        {
+         client_id, % = client_type + mobile
+         mobile,
+         client_name,
+         username,
+         password,
+         client_type,
+         phone_model,
+         proto_ver,
+         phone_os,
+         work_mode = 0
+        }).
 
 %% TODO: 需要研究消息内容对JT808协议是否有用途，如何修改
 -record(huwo_jt808_msg,       {retain :: boolean(),
@@ -95,9 +99,9 @@
 -type huwo_jt808_msg() :: #huwo_jt808_msg{}.
 
 
-%--------------------------------------------------------
-% 为了开发时兼容原mqtt协议的部分代码
-% TODO: 完全替换为jt808需要去掉此部分
+%% --------------------------------------------------------
+%%  为了开发时兼容原mqtt协议的部分代码
+%%  TODO: 完全替换为jt808需要去掉此部分
 
 -record(mqtt_frame, {fixed,
                      variable,
