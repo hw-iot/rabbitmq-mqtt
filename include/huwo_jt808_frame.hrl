@@ -97,3 +97,13 @@
                               retain = 0}).
 -record(mqtt_frame_publish,  {topic_name,
                               message_id}).
+
+-record(mqtt_topic,          {name,
+                              qos}).
+
+-record(mqtt_msg,            {retain :: boolean(),
+                              qos :: ?QOS_0 | ?QOS_1 | ?QOS_2,
+                              topic :: string(),
+                              dup :: boolean(),
+                              message_id :: message_id(),
+                              payload :: binary()}).

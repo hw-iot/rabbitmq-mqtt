@@ -79,9 +79,10 @@ process_request(?CONNECT,
                                 proto_ver = ProtoVer,
                                 phone_os = _ProtoVer,
                                 work_mode = _WorkMode} = _Payload},
-                PState0 = #proc_state{ ssl_login_name = SSLLoginName,
-                                       send_fun       = SendFun,
-                                       adapter_info   = AdapterInfo = #amqp_adapter_info{additional_info = Extra} }) ->
+                PState0 = #proc_state{
+                             send_fun = SendFun,
+                             ssl_login_name = SSLLoginName,
+                             adapter_info   = AdapterInfo = #amqp_adapter_info{additional_info = Extra} }) ->
     %% ?DEBUG(process_request_connect_payload, Payload),
     %% ?DEBUG(process_request_connect_clientid0, ClientId0),
     ClientId = case ClientId0 of
@@ -145,6 +146,7 @@ process_request(?CONNECT,
                         end
                 end
         end,
+    process_subscribe(PState1),
     ?DEBUG(process_login_return, {Return, PState1}),
     {ReturnCode, SessionPresent} = case Return of
                                        {?CONNACK_ACCEPT, _} = Return -> Return;
@@ -160,9 +162,9 @@ process_request(?CONNECT,
     %%                               payload :: binary()}).
 
     Msg = #huwo_jt808_msg{
-       qos = ?QOS_0,
-       payload = <<"bingo">>
-      },
+             qos = ?QOS_0,
+             payload = <<"bingo">>
+            },
     bin_utils:dump(process_request_publish_amqp_pub, {Msg, PState1}),
     amqp_pub(Msg, PState1),
     SendFun(<<"bingo">>, PState1),
@@ -248,6 +250,55 @@ process_login(UserBin, PassBin, ProtoVersion,
             ?CONNACK_CREDENTIALS
     end.
 
+process_subscribe(#proc_state{
+                     channels = {Channel, _},
+                     exchange = Exchange,
+                     retainer_pid = RPid,
+                     send_fun = _SendFun,
+                     message_id  = StateMsgId} = PState1) ->
+    Topics = [#mqtt_topic{name = "topic", qos=2}],
+    SubscribeMsgId = 1,
+    check_subscribe(
+      Topics,
+      fun() ->
+              {_QosResponse, PState2} =
+                  lists:foldl(
+                    fun (#mqtt_topic{name = TopicName, qos  = Qos}, {QosList, PState3}) ->
+                            SupportedQos = supported_subs_qos(Qos),
+                            {Queue, #proc_state{subscriptions = Subs} = PState2} =
+                                ensure_queue(SupportedQos, PState3),
+                            Binding = #'queue.bind'{
+                                         queue       = Queue,
+                                         exchange    = Exchange,
+                                         routing_key = rabbit_mqtt_util:mqtt2amqp(
+                                                         TopicName)},
+                            #'queue.bind_ok'{} = amqp_channel:call(Channel, Binding),
+                            SupportedQosList = case maps:find(TopicName, Subs) of
+                                                   {ok, L} -> [SupportedQos|L];
+                                                   error   -> [SupportedQos]
+                                               end,
+                            {[SupportedQos | QosList],
+                             PState2 #proc_state{
+                               subscriptions =
+                                   maps:put(TopicName, SupportedQosList, Subs)}}
+                    end, {[], PState1}, Topics),
+              %% SendFun(#mqtt_frame{fixed    = #mqtt_frame_fixed{type = ?SUBACK},
+              %%                     variable = #mqtt_frame_suback{
+              %%                                   message_id = SubscribeMsgId,
+              %%                                   qos_table  = QosResponse}}, PState2),
+              %% we may need to send up to length(Topics) messages.
+              %% if QoS is > 0 then we need to generate a message id,
+              %% and increment the counter.
+              StartMsgId = safe_max_id(SubscribeMsgId, StateMsgId),
+              N = lists:foldl(fun (Topic, Acc) ->
+                                      case maybe_send_retained_message(RPid, Topic, Acc, PState2) of
+                                          {true, X} -> Acc + X;
+                                          false     -> Acc
+                                      end
+                              end, StartMsgId, Topics),
+              {ok, PState2#proc_state{message_id = N}}
+      end, PState1).
+
 %%-----------------------------------------------------------------------
 
 set_proto_version(AdapterInfo = #amqp_adapter_info{protocol = {Proto, _}}, Vsn) ->
@@ -266,7 +317,7 @@ send_client(Frame, #proc_state{ socket = Sock }) ->
 
     %% Package = huwo_jt808_frame:serialise(Frame),
     %% ?DEBUG(send_client_package, Package),
-    rabbit_net:port_command(Sock, Frame).
+    rabbit_net:port_command(Sock, <<"push!">>).
 
 %%---------------------------------------------------------------------
 %% sys
@@ -313,9 +364,12 @@ send_will(PState = #proc_state{will_msg = WillMsg = #huwo_jt808_msg{retain = Ret
     end,
     PState #proc_state{ channels = {undefined, undefined} }.
 
+safe_max_id(Id0, Id1) ->
+    ensure_valid_mqtt_message_id(erlang:max(Id0, Id1)).
 
-delivery_mode(?QOS_0) -> 1;
-delivery_mode(?QOS_1) -> 2.
+next_msg_id(PState = #proc_state{ message_id = MsgId0 }) ->
+    MsgId1 = ensure_valid_mqtt_message_id(MsgId0 + 1),
+    PState#proc_state{ message_id = MsgId1 }.
 
 %% amqp_pub
 
@@ -364,10 +418,41 @@ amqp_pub(#huwo_jt808_msg{ qos        = Qos,
     PState #proc_state{ unacked_pubs   = UnackedPubs1,
                         awaiting_seqno = SeqNo1 }.
 
+maybe_send_retained_message(RPid, #mqtt_topic{name = S, qos = SubscribeQos}, MsgId,
+                            #proc_state{ send_fun = SendFun } = PState) ->
+    case rabbit_mqtt_retainer:fetch(RPid, S) of
+        undefined -> false;
+        Msg       ->
+            %% calculate effective QoS as the lower value of SUBSCRIBE frame QoS
+            %% and retained message QoS. The spec isn't super clear on this, we
+            %% do what Mosquitto does, per user feedback.
+            Qos = erlang:min(SubscribeQos, Msg#mqtt_msg.qos),
+            Id = case Qos of
+                     ?QOS_0 -> undefined;
+                     ?QOS_1 -> MsgId
+                 end,
+            SendFun(#mqtt_frame{fixed = #mqtt_frame_fixed{
+                                           type = 1,
+                                           qos  = Qos,
+                                           dup  = false,
+                                           retain = Msg#mqtt_msg.retain
+                                          }, variable = #mqtt_frame_publish{
+                                                           message_id = Id,
+                                                           topic_name = S
+                                                          },
+                                payload = Msg#mqtt_msg.payload}, PState),
+            case Qos of
+                ?QOS_0 -> false;
+                ?QOS_1 -> {true, 1}
+            end
+    end.
+
 %% amqp_callback
 %% TODO: 从mqtt frame 提取的，mqtt的消息类型，换为JT808后要去掉
 -define(PUBLISH,      3).
 -define(PUBACK,       4).
+%% -record('basic.deliver', {consumer_tag, delivery_tag, redelivered = false, exchange, routing_key}).
+%% -record(amqp_msg, {props = #'P_basic'{}, payload = <<>>}).
 amqp_callback({#'basic.deliver'{ consumer_tag = ConsumerTag,
                                  delivery_tag = DeliveryTag,
                                  routing_key  = RoutingKey },
@@ -458,27 +543,24 @@ delivery_dup({#'basic.deliver'{ redelivered = Redelivered },
 %% decide at which qos level to deliver based on subscription
 %% and the message publish qos level. non-MQTT publishes are
 %% assumed to be qos 1, regardless of delivery_mode.
-delivery_qos(Tag, _Headers,  #proc_state{ consumer_tags = {Tag, _} }) ->
-    {?QOS_0, ?QOS_0};
-delivery_qos(Tag, Headers,   #proc_state{ consumer_tags = {_, Tag} }) ->
-                                                % TODO: 替换为JT808
-    case rabbit_mqtt_util:table_lookup(Headers, <<"x-mqtt-publish-qos">>) of
-        {byte, Qos} -> {lists:min([Qos, ?QOS_1]), ?QOS_1};
-        undefined   -> {?QOS_1, ?QOS_1}
-    end.
+%% {function_clause,[{huwo_jt808_processor,delivery_qos,[<<"amq.ctag-0BCwf6nw9UhcaOLtVgadSg">>,undefined,{proc_state,#Port<0.13271>,#{},{undefined,undefined},{0,nil},{0,nil},undefined,1,undefined,undefined,undefined,{undefined,undefined},undefined,<<"amq.topic">>,{amqp_adapter_info,{0,0,0,0,0,0,0,1},1883,{0,0,0,0,0,0,0,1},50119,<<"[::1]:50119 -> [::1]:1883">>,{'JT808',"N/A"},[{channels,1},{channel_max,1},{frame_max,0},{client_properties,[{<<"product">>,longstr,<<"JT808 client">>}]},{ssl,false}]},none,undefined,undefined,#Fun<huwo_jt808_processor.0.12800453>}],[{file,"src/huwo_jt808_processor.erl"},{line,544}]}
+delivery_qos(_, _, _) ->
+    {?QOS_1, ?QOS_1}.
+
+%% delivery_qos(Tag, _Headers,  #proc_state{ consumer_tags = {Tag, _} }) ->
+%%     {?QOS_0, ?QOS_0};
+%% delivery_qos(Tag, _Headers,   #proc_state{ consumer_tags = {_, Tag} }) ->
+%%     {?QOS_1, ?QOS_1}.
+%% case rabbit_mqtt_util:table_lookup(Headers, <<"x-mqtt-publish-qos">>) of
+%%     {byte, Qos} -> {lists:min([Qos, ?QOS_1]), ?QOS_1};
+%%     undefined   -> {?QOS_1, ?QOS_1}
+%% end.
 
 %% TODO: messageid需要处理
 ensure_valid_mqtt_message_id(Id) when Id >= 16#ffff ->
     1;
 ensure_valid_mqtt_message_id(Id) ->
     Id.
-
-%%safe_max_id(Id0, Id1) ->
-%%    ensure_valid_mqtt_message_id(erlang:max(Id0, Id1)).
-
-next_msg_id(PState = #proc_state{ message_id = MsgId0 }) ->
-    MsgId1 = ensure_valid_mqtt_message_id(MsgId0 + 1),
-    PState#proc_state{ message_id = MsgId1 }.
 
 adapter_info(Sock, ProtoName) ->
     amqp_connection:socket_adapter_info(Sock, {ProtoName, "N/A"}).
@@ -498,36 +580,6 @@ close_connection(PState = #proc_state{ connection = Connection,
     PState #proc_state{ channels   = {undefined, undefined},
                         connection = undefined }.
 
-
-
-check_topic_access(TopicName, Access,
-                   #proc_state{
-                      auth_state = #auth_state{user = User = #user{username = Username},
-                                               vhost = VHost},
-                      exchange = Exchange,
-                      client_id = ClientId}) ->
-    Resource = #resource{virtual_host = VHost,
-                         kind = topic,
-                         name = Exchange},
-                                                % TODO: mqtt转amqp
-    Context = #{routing_key  => rabbit_mqtt_util:mqtt2amqp(TopicName),
-                variable_map => #{
-                                  <<"username">>  => Username,
-                                  <<"vhost">>     => VHost,
-                                  <<"client_id">> => rabbit_data_coercion:to_binary(ClientId)
-                                 }
-               },
-
-    try rabbit_access_control:check_topic_access(User, Resource, Access, Context) of
-        R -> R
-    catch
-        _:{amqp_error, access_refused, Msg, _} ->
-            rabbit_log:error("operation resulted in an error (access_refused): ~p~n", [Msg]),
-            {error, access_refused};
-        _:Error ->
-            rabbit_log:error("~p~n", [Error]),
-            {error, access_refused}
-    end.
 
 %% info()
 %% 返回进程状态的指定值
@@ -742,6 +794,13 @@ session_present(Channel, ClientId)  ->
     end.
 
 
+supported_subs_qos(?QOS_0) -> ?QOS_0;
+supported_subs_qos(?QOS_1) -> ?QOS_1;
+supported_subs_qos(?QOS_2) -> ?QOS_1.
+
+delivery_mode(?QOS_0) -> 1;
+delivery_mode(?QOS_1) -> 2.
+
 %% different qos subscriptions are received in different queues
 %% with appropriate durability and timeout arguments
 %% this will lead to duplicate messages for overlapping subscriptions
@@ -793,4 +852,42 @@ ensure_queue(Qos, #proc_state{ channels      = {Channel, _},
             {Queue, PState #proc_state{ consumer_tags = setelement(Qos+1, Tags, Tag) }};
         {exists, Q} ->
             {Q, PState}
+    end.
+
+check_subscribe([], Fn, _) ->
+    Fn();
+
+check_subscribe([#mqtt_topic{name = TopicName} | Topics], Fn, PState) ->
+    case check_topic_access(TopicName, read, PState) of
+        ok -> check_subscribe(Topics, Fn, PState);
+        _ -> {err, unauthorized, PState}
+    end.
+
+check_topic_access(TopicName, Access,
+                   #proc_state{
+                      auth_state = #auth_state{user = User = #user{username = Username},
+                                               vhost = VHost},
+                      exchange = Exchange,
+                      client_id = ClientId}) ->
+    Resource = #resource{virtual_host = VHost,
+                         kind = topic,
+                         name = Exchange},
+
+    Context = #{routing_key  => rabbit_mqtt_util:mqtt2amqp(TopicName),
+                variable_map => #{
+                                  <<"username">>  => Username,
+                                  <<"vhost">>     => VHost,
+                                  <<"client_id">> => rabbit_data_coercion:to_binary(ClientId)
+                                 }
+               },
+
+    try rabbit_access_control:check_topic_access(User, Resource, Access, Context) of
+        R -> R
+    catch
+        _:{amqp_error, access_refused, Msg, _} ->
+            rabbit_log:error("operation resulted in an error (access_refused): ~p~n", [Msg]),
+            {error, access_refused};
+        _:Error ->
+            rabbit_log:error("~p~n", [Error]),
+            {error, access_refused}
     end.
