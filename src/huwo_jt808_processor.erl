@@ -154,7 +154,6 @@ process_request(?CONNECT,
                         {?CONNACK_CREDENTIALS, PState};
                     {UserBin, PassBin} ->
                         case process_login(UserBin, PassBin, ProtoVersion, PState) of
-                            %% TODO hw-iot ----------------
                             {?CONNACK_ACCEPT, Conn, VHost, AState} ->
                                 RetainerPid =
                                     rabbit_mqtt_retainer_sup:child_for_vhost(VHost),
@@ -186,17 +185,18 @@ process_request(?CONNECT,
         end,
     %% {0,false}
     {ReturnCode, _SessionPresent} = case Return of
-                                       {?CONNACK_ACCEPT, _} = Return -> Return;
-                                       Return                        -> {Return, false}
-                                   end,
+                                        {?CONNACK_ACCEPT, _} = Return -> Return;
+                                        Return                        -> {Return, false}
+                                    end,
     %% SendFun(#mqtt_frame{ fixed    = #mqtt_frame_fixed{ type = ?CONNACK},
     %%                      variable = #mqtt_frame_connack{
     %%                                    session_present = SessionPresent,
     %%                                    return_code = ReturnCode}},
     %%         PState1),
     SendFun(huwo_jt808_session:response(Request, ReturnCode), PState1),
+    %% TODO hw-iot ----------------
 
-    Msg = #huwo_jt808_msg{ qos = ?QOS_0, payload = <<"bingo">>},
+    Msg = #huwo_jt808_msg{ qos = ?QOS_0, payload = <<"bingo">>, topic = <<"topic">>},
     bin_utils:dump(process_request_publish_amqp_pub, Msg),
     amqp_pub(Msg, PState1),
     process_subscribe(PState1),
@@ -672,6 +672,81 @@ ensure_queue(Qos, #proc_state{ channels      = {Channel, _},
             {Q, PState}
     end.
 
+send_will(PState = #proc_state{will_msg = undefined}) ->
+    PState;
+%% TODO: huwo_jt808_msg的内容有什么用途需要研究
+send_will(PState = #proc_state{will_msg = WillMsg = #huwo_jt808_msg{retain = Retain,
+                                                                    topic = Topic},
+                               retainer_pid = RPid,
+                               channels = {ChQos0, ChQos1}}) ->
+    case check_topic_access(Topic, write, PState) of
+        ok ->
+            amqp_pub(WillMsg, PState),
+            case Retain of
+                false -> ok;
+                true  -> hand_off_to_retainer(RPid, Topic, WillMsg)
+            end;
+        Error  ->
+            rabbit_log:warning(
+              "Could not send last will: ~p~n",
+              [Error])
+    end,
+    case ChQos1 of
+        undefined -> ok;
+        _         -> amqp_channel:close(ChQos1)
+    end,
+    case ChQos0 of
+        undefined -> ok;
+        _         -> amqp_channel:close(ChQos0)
+    end,
+    PState #proc_state{ channels = {undefined, undefined} }.
+
+amqp_pub(undefined, PState) ->
+    PState;
+
+%% set up a qos1 publishing channel if necessary
+%% this channel will only be used for publishing, not consuming
+amqp_pub(Msg    = #huwo_jt808_msg{ qos = ?QOS_1 },
+         PState = #proc_state{ channels       = {ChQos0, undefined},
+                               awaiting_seqno = undefined,
+                               connection     = Conn }) ->
+    {ok, Channel} = amqp_connection:open_channel(Conn),
+    #'confirm.select_ok'{} = amqp_channel:call(Channel, #'confirm.select'{}),
+    amqp_channel:register_confirm_handler(Channel, self()),
+    amqp_pub(Msg, PState #proc_state{ channels       = {ChQos0, Channel},
+                                      awaiting_seqno = 1 });
+
+amqp_pub(#huwo_jt808_msg{ qos        = Qos,
+                          topic      = Topic,
+                          dup        = Dup,
+                          message_id = MessageId,
+                          payload    = Payload },
+         PState = #proc_state{ channels       = {ChQos0, ChQos1},
+                               exchange       = Exchange,
+                               unacked_pubs   = UnackedPubs,
+                               awaiting_seqno = SeqNo }) ->
+    Method = #'basic.publish'{ exchange    = Exchange,
+                               %% routing_key = <<"huwo.jt808">>
+                               routing_key = rabbit_mqtt_util:mqtt2amqp(Topic)},
+    Headers = [{<<"x-mqtt-publish-qos">>, byte, Qos},
+               {<<"x-mqtt-dup">>, bool, Dup}],
+    Msg = #amqp_msg{ props   = #'P_basic'{ headers       = Headers,
+                                           delivery_mode = delivery_mode(Qos)},
+                     payload = Payload },
+    {UnackedPubs1, Ch, SeqNo1} =
+        case Qos =:= ?QOS_1 andalso MessageId =/= undefined of
+            true  -> {gb_trees:enter(SeqNo, MessageId, UnackedPubs), ChQos1,
+                      SeqNo + 1};
+            false -> {UnackedPubs, ChQos0, SeqNo}
+        end,
+    amqp_channel:cast_flow(Ch, Method, Msg),
+    PState #proc_state{ unacked_pubs   = UnackedPubs1,
+                        awaiting_seqno = SeqNo1 }.
+
+adapter_info(Sock, ProtoName) ->
+    amqp_connection:socket_adapter_info(Sock, {ProtoName, "N/A"}).
+
+
 process_subscribe(#proc_state{
                      channels = {Channel, _},
                      exchange = Exchange,
@@ -742,38 +817,6 @@ send_client(Response, #proc_state{ socket = Sock }) ->
     ?DEBUG(processor_send_client_frame, Frame),
     rabbit_net:port_command(Sock, Frame).
 
-%% send_will()
-
-send_will(PState = #proc_state{will_msg = undefined}) ->
-    PState;
-
-%% TODO: huwo_jt808_msg的内容有什么用途需要研究
-send_will(PState = #proc_state{will_msg = WillMsg = #huwo_jt808_msg{retain = Retain,
-                                                                    topic = Topic},
-                               retainer_pid = RPid,
-                               channels = {ChQos0, ChQos1}}) ->
-    case check_topic_access(Topic, write, PState) of
-        ok ->
-            amqp_pub(WillMsg, PState),
-            case Retain of
-                false -> ok;
-                true  -> hand_off_to_retainer(RPid, Topic, WillMsg)
-            end;
-        Error  ->
-            rabbit_log:warning(
-              "Could not send last will: ~p~n",
-              [Error])
-    end,
-    case ChQos1 of
-        undefined -> ok;
-        _         -> amqp_channel:close(ChQos1)
-    end,
-    case ChQos0 of
-        undefined -> ok;
-        _         -> amqp_channel:close(ChQos0)
-    end,
-    PState #proc_state{ channels = {undefined, undefined} }.
-
 safe_max_id(Id0, Id1) ->
     ensure_valid_mqtt_message_id(erlang:max(Id0, Id1)).
 
@@ -781,52 +824,6 @@ next_msg_id(PState = #proc_state{ message_id = MsgId0 }) ->
     MsgId1 = ensure_valid_mqtt_message_id(MsgId0 + 1),
     PState#proc_state{ message_id = MsgId1 }.
 
-%% amqp_pub
-
-amqp_pub(undefined, PState) ->
-    PState;
-
-%% set up a qos1 publishing channel if necessary
-%% this channel will only be used for publishing, not consuming
-amqp_pub(Msg    = #huwo_jt808_msg{ qos = ?QOS_1 },
-         PState = #proc_state{ channels       = {ChQos0, undefined},
-                               awaiting_seqno = undefined,
-                               connection     = Conn }) ->
-    ?DEBUG(amqp_pub1, PState),
-    {ok, Channel} = amqp_connection:open_channel(Conn),
-    #'confirm.select_ok'{} = amqp_channel:call(Channel, #'confirm.select'{}),
-    amqp_channel:register_confirm_handler(Channel, self()),
-    amqp_pub(Msg, PState #proc_state{ channels       = {ChQos0, Channel},
-                                      awaiting_seqno = 1 });
-
-amqp_pub(#huwo_jt808_msg{ qos        = Qos,
-                          %% topic      = Topic,
-                          dup        = Dup,
-                          message_id = MessageId,
-                          payload    = Payload },
-         PState = #proc_state{ channels       = {ChQos0, ChQos1},
-                               exchange       = Exchange,
-                               unacked_pubs   = UnackedPubs,
-                               awaiting_seqno = SeqNo }) ->
-    ?DEBUG(amqp_pub2, PState),
-    Method = #'basic.publish'{ exchange    = Exchange,
-                               routing_key = <<"huwo.jt808">>},
-    Headers = [{<<"x-mqtt-publish-qos">>, byte, Qos},
-               {<<"x-mqtt-dup">>, bool, Dup}],
-    Msg = #amqp_msg{ props   = #'P_basic'{ headers       = Headers,
-                                           delivery_mode = delivery_mode(Qos)},
-                     payload = Payload },
-    {UnackedPubs1, Ch, SeqNo1} =
-        case Qos =:= ?QOS_1 andalso MessageId =/= undefined of
-            true  -> {gb_trees:enter(SeqNo, MessageId, UnackedPubs), ChQos1,
-                      SeqNo + 1};
-            false -> {UnackedPubs, ChQos0, SeqNo}
-        end,
-    ?DEBUG(channel, {Ch, ChQos0, ChQos1}),
-    ?DEBUG(method, Method),
-    amqp_channel:cast_flow(Ch, Method, Msg),
-    PState #proc_state{ unacked_pubs   = UnackedPubs1,
-                        awaiting_seqno = SeqNo1 }.
 
 
 %% TODO: messageid需要处理
@@ -834,9 +831,6 @@ ensure_valid_mqtt_message_id(Id) when Id >= 16#ffff ->
     1;
 ensure_valid_mqtt_message_id(Id) ->
     Id.
-
-adapter_info(Sock, ProtoName) ->
-    amqp_connection:socket_adapter_info(Sock, {ProtoName, "N/A"}).
 
 close_connection(PState = #proc_state{ connection = undefined }) ->
     PState;
