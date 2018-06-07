@@ -1,6 +1,13 @@
+* development
 #+BEGIN_SRC shell
 gmake clean run-broker
+cat <(echo $DATA | xxd -r -p ) - | nc localhost 1883
+/Volumes/Kayle/w/rabbitmq/rabbitmq-tutorials/erlang/emit_log_topic.erl
+/Volumes/Kayle/w/rabbitmq/rabbitmq-tutorials/erlang/receive_logs_topic.erl "#"
+#+END_SRC
 
+* client
+#+BEGIN_SRC shell
 # mqtt connect package
 export DATA=102300064D51497364700302003C00156D6F73717075627C31353235382D6D6F7267616E61
 # jt808 hello
