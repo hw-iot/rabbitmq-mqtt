@@ -50,7 +50,6 @@ init([]) ->
 
 handle_call({register, ClientId, Pid}, _From,
             State = #state{client_ids = Ids}) ->
-    io:fwrite("register, ClientId: ~p, Pid ~p", [ClientId, Pid]),
     Ids1 = case maps:find(ClientId, Ids) of
                {ok, {OldPid, MRef}} when Pid =/= OldPid ->
                    catch gen_server2:cast(OldPid, duplicate_id),

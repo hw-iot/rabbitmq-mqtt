@@ -185,51 +185,33 @@ process_request(?CONNECT,
                         end
                 end
         end,
-    process_subscribe(PState1),
-    ?DEBUG(process_login_return, {Return, PState1}),
+    %% {0,false}
     {ReturnCode, SessionPresent} = case Return of
                                        {?CONNACK_ACCEPT, _} = Return -> Return;
                                        Return                        -> {Return, false}
                                    end,
-    ?DEBUG(process_login_return_code, ReturnCode),
-    ?DEBUG(process_login_session_present, SessionPresent),
-    %% -record(mqtt_msg,            {retain :: boolean(),
-    %%                               qos :: ?QOS_0 | ?QOS_1 | ?QOS_2,
-    %%                               topic :: string(),
-    %%                               dup :: boolean(),
-    %%                               message_id :: message_id(),
-    %%                               payload :: binary()}).
-
-    Msg = #huwo_jt808_msg{
-             qos = ?QOS_0,
-             payload = <<"bingo">>
-            },
-    bin_utils:dump(process_request_publish_amqp_pub, {Msg, PState1}),
-    amqp_pub(Msg, PState1),
-    SendFun(<<"bingo">>, PState1),
+    %% TODO
     %% SendFun(#mqtt_frame{ fixed    = #mqtt_frame_fixed{ type = ?CONNACK},
     %%                      variable = #mqtt_frame_connack{
     %%                                    session_present = SessionPresent,
     %%                                    return_code = ReturnCode}},
     %%         PState1),
-    {ok, PState1};
+    Msg = #huwo_jt808_msg{ qos = ?QOS_0, payload = <<"bingo">>},
+    bin_utils:dump(process_request_publish_amqp_pub, Msg),
+    amqp_pub(Msg, PState1),
+    SendFun(<<"bingo">>, PState1),
+    process_subscribe(PState1),
+    {ok, PState1}.
 
-%% 目前用于测试
-process_request(_MessageType,
-                _Frame,
-                PState0 = #proc_state{ send_fun       = _SendFun }) ->
-    Frame = #huwo_jt808_frame{
-               header = #huwo_jt808_frame_header{
-                           id = 42,
-                           timestamp = 201806011200,
-                           sn = 1},
-               payload = <<"hello, 808!", 16#3D, 16#3E>>},
-
-    ?DEBUG(process_request, Frame),
-    %% SendFun = send_client/2,
-    send_client(Frame, PState0),
-    amqp_pub(Frame, PState0),
-    {ok, PState0}.
+%%---------------------------------------------------------------------
+hand_off_to_retainer(RetainerPid, Topic, #huwo_jt808_msg{payload = <<"">>}) ->
+    %% TODO: retainer支持
+    rabbit_mqtt_retainer:clear(RetainerPid, Topic),
+    ok;
+hand_off_to_retainer(RetainerPid, Topic, Msg) ->
+    %% TODO: retainer支持
+    rabbit_mqtt_retainer:retain(RetainerPid, Topic, Msg),
+    ok.
 
 maybe_send_retained_message(RPid, #mqtt_topic{name = S, qos = SubscribeQos}, MsgId,
                             #proc_state{ send_fun = SendFun } = PState) ->
@@ -413,9 +395,9 @@ session_present(Channel, ClientId)  ->
 make_will_msg(#huwo_jt808_frame_connect{ will_flag   = false }) ->
     undefined;
 make_will_msg(#huwo_jt808_frame_connect{ will_retain = Retain,
-                                   will_qos    = Qos,
-                                   will_topic  = Topic,
-                                   will_msg    = Msg }) ->
+                                         will_qos    = Qos,
+                                         will_topic  = Topic,
+                                         will_msg    = Msg }) ->
     %% TODO
     #mqtt_msg{ retain  = Retain,
                qos     = Qos,
@@ -761,19 +743,6 @@ send_client(Frame, #proc_state{ socket = Sock }) ->
     %% Package = huwo_jt808_frame:serialise(Frame),
     %% ?DEBUG(send_client_package, Package),
     rabbit_net:port_command(Sock, Frame).
-
-%%---------------------------------------------------------------------
-%% sys
-
-hand_off_to_retainer(RetainerPid, Topic, #huwo_jt808_msg{payload = <<"">>}) ->
-    %% TODO: retainer支持
-    rabbit_mqtt_retainer:clear(RetainerPid, Topic),
-    ok;
-hand_off_to_retainer(RetainerPid, Topic, Msg) ->
-    %% TODO: retainer支持
-    rabbit_mqtt_retainer:retain(RetainerPid, Topic, Msg),
-    ok.
-
 
 %% send_will()
 
