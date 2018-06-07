@@ -5,6 +5,7 @@
 
 -compile(export_all).
 
+-include("include/huwo_jt808.hrl").
 -include("include/huwo_jt808_frame.hrl").
 
 test_huwo_jt808_frame()->
@@ -50,36 +51,28 @@ test_send_package() ->
 %% -define(PARSE_STRING0(Payload, Key, Rest), [Key, Rest] = binary:split(Payload, [<<0,0>>])).
 %% -define(PARSE_UINT8(Payload, Key, Rest), << Key:8, Rest/binary >> = Payload).
 
-test_serialise_connect_frame()->
-    Request = ?NEW_FRAME(#huwo_jt808_frame_connect{
-                            mobile = "13896079527",
-                            client_name = "huwo-jt808-erlang-client",
-                            username = "user",
-                            password = "pass",
-                            client_type = 2,
-                            phone_model = "iPhone 3G",
-                            proto_ver = "201.1.1-huwo",
-                            phone_os = "OSX 10",
-                            work_mode = 1
-                           }, 12),
+gen_connect_frame() ->
+    huwo_jt808_session:warp(
+      {?CONNECT, 1,
+       #huwo_jt808_frame_connect{
+          mobile = "13896079527",
+          client_name = "huwo-jt808-erlang-client",
+          username = "guest",
+          password = "guest",
+          client_type = 2,
+          phone_model = "iPhone 3G",
+          proto_ver = "201.1.1-huwo",
+          phone_os = "OSX 10",
+          work_mode = 1}}).
 
+test_serialise_connect_frame()->
+    Request = gen_connect_frame(),
     Frame = huwo_jt808_frame:serialise(Request),
     bin_utils:dump(frame, Frame),
     ok.
 
-
 test_parse_connect_frame()->
-    Request0 = ?NEW_FRAME(#huwo_jt808_frame_connect{
-                             mobile = "13896079527",
-                             client_name = "huwo-jt808-erlang-client",
-                             username = "guest",
-                             password = "guest",
-                             client_type = 2,
-                             phone_model = "iPhone 3G",
-                             proto_ver = "201.1.1-huwo",
-                             phone_os = "OSX 10",
-                             work_mode = 1
-                            }, 12),
+    Request0 = gen_connect_frame(),
 
     Frame = huwo_jt808_frame:serialise(Request0),
     bin_utils:dump(frame, Frame),
@@ -89,8 +82,17 @@ test_parse_connect_frame()->
     huwo_jt808_frame:dump(Request),
     ok.
 
+test_gen_ack()->
+    Connect = gen_connect_frame(),
+    Ack = huwo_jt808_session:response(Connect, ?CONNACK_ACCEPT),
+    bin_utils:dump(connect, {Connect, Ack}),
+
+    Frame = huwo_jt808_frame:serialise(Ack),
+    bin_utils:dump(frame, Frame).
+
 main(_) ->
     %% test_huwo_jt808_frame(),
     %% test_serialise_connect_frame(),
-    test_parse_connect_frame(),
+    %% test_parse_connect_frame(),
+    test_gen_ack(),
     io:fwrite("~n").

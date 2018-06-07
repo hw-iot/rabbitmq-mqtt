@@ -10,6 +10,7 @@
 -export([escape/1]).
 -export([dump/1]).
 
+-include("huwo_jt808.hrl").
 -include("huwo_jt808_frame.hrl").
 
 -define(MAX_LEN, 2#1111111111111).
@@ -85,35 +86,63 @@ parse_body(#huwo_jt808_frame_header{ id = ?CONNECT }, Body) ->
 parse_body(_Header, Body) ->
     {ok, Body}.
 
-serialise(#huwo_jt808_frame{
-             payload = #huwo_jt808_frame_connect{
-                          mobile = Mobile,
-                          client_name = ClientName,
-                          username = Username,
-                          password = Password,
-                          client_type = ClientType,
-                          phone_model = PhoneModel,
-                          proto_ver = ProtoVer,
-                          phone_os = PhoneOS,
-                          work_mode = WorkMode
-                         }} = Request) ->
-    Payload = <<?STRING0(Mobile),
-                ?STRING0(ClientName), ?STRING0(Username), ?STRING0(Password), ClientType:8,
-                ?STRING0(PhoneModel), ?STRING0(ProtoVer), ?STRING0(PhoneOS),
-                WorkMode:8>>,
-    serialise(?FRAME(?CONNECT, Request, Payload));
+%% serialise(#huwo_jt808_frame{
+%%              header = #huwo_jt808_frame_header{
+%%                          id = Id,
+%%                          aes = Aes,
+%%                          zip = Zip,
+%%                          divide = Divide,
+%%                          timestamp = Timestamp,
+%%                          sn = SN
+%%                         },
+%%              payload = Payload}) ->
+%%     BCDTimestamp = bin_utils:bcd_encode(Timestamp, 6),
+%%     Len = byte_size(Payload),
+%%     Checksum = checksum(Payload),
+%%     Property = <<Aes:1, Zip:1, Divide:1, Len:13>>,
+%%     Body = <<Id:16,
+%%              Property:2/binary,
+%%              BCDTimestamp:6/binary,
+%%              SN:16,
+%%              Payload:Len/binary,
+%%              Checksum:1/binary>>,
+%%     <<?FLAG_BOUNDARY, (escape(Body))/binary, ?FLAG_BOUNDARY>>.
 
-serialise(#huwo_jt808_frame{
-             header = #huwo_jt808_frame_header{
-                         id = Id,
-                         aes = Aes,
-                         zip = Zip,
-                         divide = Divide,
-                         timestamp = Timestamp,
-                         sn = SN
-                        },
-             payload = Payload
-            }) ->
+serialise(#huwo_jt808_frame{ header = Header, payload = Payload0 }) ->
+    Payload = serialise_payload(Payload0),
+    serialise_frame(Header, Payload);
+serialise(Bin) ->
+    Bin.
+
+serialise_payload(#huwo_jt808_frame_connect{
+                     mobile = Mobile,
+                     client_name = ClientName,
+                     username = Username,
+                     password = Password,
+                     client_type = ClientType,
+                     phone_model = PhoneModel,
+                     proto_ver = ProtoVer,
+                     phone_os = PhoneOS,
+                     work_mode = WorkMode
+                    }) ->
+    <<?STRING0(Mobile),
+      ?STRING0(ClientName), ?STRING0(Username), ?STRING0(Password), ClientType:8,
+      ?STRING0(PhoneModel), ?STRING0(ProtoVer), ?STRING0(PhoneOS),
+      WorkMode:8>>;
+serialise_payload(#huwo_jt808_frame_ack{
+                     ack_sn = SN,
+                     ack_id = ID,
+                     ack_code = ReturnCode}) ->
+    <<?UINT16(SN), ?UINT16(ID), ?UINT8(ReturnCode)>>.
+
+serialise_frame(#huwo_jt808_frame_header{
+                   id = Id,
+                   aes = Aes,
+                   zip = Zip,
+                   divide = Divide,
+                   timestamp = Timestamp,
+                   sn = SN
+                  }, Payload)->
     BCDTimestamp = bin_utils:bcd_encode(Timestamp, 6),
     Len = byte_size(Payload),
     Checksum = checksum(Payload),
@@ -125,7 +154,6 @@ serialise(#huwo_jt808_frame{
              Payload:Len/binary,
              Checksum:1/binary>>,
     <<?FLAG_BOUNDARY, (escape(Body))/binary, ?FLAG_BOUNDARY>>.
-
 
 %% internal
 parse_content(Frame, Flag) ->

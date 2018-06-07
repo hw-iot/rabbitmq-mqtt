@@ -91,9 +91,9 @@ process_frame(#huwo_jt808_frame{
 %% call(_, PState = initial_state:retrun:#proc_state)
 process_frame(#huwo_jt808_frame{
                  header = #huwo_jt808_frame_header{
-                             id = MsgID}} = Frame, PState) ->
+                             id = Type}} = Frame, PState) ->
     ?DEBUG(processor_process_frame_frame, Frame),
-    case process_request(MsgID, Frame, PState) of
+    case process_request(Type, Frame, PState) of
         {ok, PState1} -> {ok, PState1, PState1#proc_state.connection};
         Ret -> Ret
     end.
@@ -119,12 +119,11 @@ process_request(?CONNECT,
                                 phone_model = _PhoneModel,
                                 proto_ver = ProtoVersion,
                                 phone_os = _ProtoOS,
-                                work_mode = _WorkMode} = Var},
+                                work_mode = _WorkMode} = Var} = Request,
                 PState0 = #proc_state{ ssl_login_name = SSLLoginName,
                                        send_fun       = SendFun,
                                        adapter_info   = AdapterInfo = #amqp_adapter_info{additional_info = Extra} }) ->
     %% ClientId = "013896079527" | "IYZ-hf2cvlQdS1IqCWTmqA"
-    ?DEBUG(process_request_connect_clientid0, ClientId0),
     ClientId = case ClientId0 of
                    []    -> rabbit_mqtt_util:gen_client_id();
                    [_|_] -> ClientId0
@@ -186,20 +185,20 @@ process_request(?CONNECT,
                 end
         end,
     %% {0,false}
-    {ReturnCode, SessionPresent} = case Return of
+    {ReturnCode, _SessionPresent} = case Return of
                                        {?CONNACK_ACCEPT, _} = Return -> Return;
                                        Return                        -> {Return, false}
                                    end,
-    %% TODO
     %% SendFun(#mqtt_frame{ fixed    = #mqtt_frame_fixed{ type = ?CONNACK},
     %%                      variable = #mqtt_frame_connack{
     %%                                    session_present = SessionPresent,
     %%                                    return_code = ReturnCode}},
     %%         PState1),
+    SendFun(huwo_jt808_session:response(Request, ReturnCode), PState1),
+
     Msg = #huwo_jt808_msg{ qos = ?QOS_0, payload = <<"bingo">>},
     bin_utils:dump(process_request_publish_amqp_pub, Msg),
     amqp_pub(Msg, PState1),
-    SendFun(<<"bingo">>, PState1),
     process_subscribe(PState1),
     {ok, PState1}.
 
@@ -737,11 +736,10 @@ human_readable_mqtt_version(<<"201.1.1-huwo">>) ->
 human_readable_mqtt_version(_) ->
     "N/A".
 
-send_client(Frame, #proc_state{ socket = Sock }) ->
-    ?DEBUG(send_client_frame, Frame),
-
-    %% Package = huwo_jt808_frame:serialise(Frame),
-    %% ?DEBUG(send_client_package, Package),
+send_client(Response, #proc_state{ socket = Sock }) ->
+    Frame = huwo_jt808_frame:serialise(Response),
+    ?DEBUG(processor_send_client_response, Response),
+    ?DEBUG(processor_send_client_frame, Frame),
     rabbit_net:port_command(Sock, Frame).
 
 %% send_will()

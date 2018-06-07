@@ -5,6 +5,9 @@
 -define(ESCAPED_3D, <<16#3D, 16#01>>).
 
 -define(STRING0(Val), (list_to_binary(Val))/binary, <<0,0>>/binary).
+-define(UINT8(Val), Val:8).
+-define(UINT16(Val), Val:16).
+
 %% TODO return string?
 %% returned binary
 -define(PARSE_STRING0(Payload, Key, Rest), [Key, Rest] = binary:split(Payload, [<<0,0>>])).
@@ -40,21 +43,6 @@
 -define(QOS_0, 0).
 -define(QOS_1, 1).
 -define(QOS_2, 2).
-
-
--define(NEW_FRAME(Payload, SN),
-        #huwo_jt808_frame{
-           header = #huwo_jt808_frame_header{
-                       sn = SN,
-                       timestamp = 201805141800},
-           payload = Payload}).
-
--define(FRAME(ID, Frame, Payload),
-        #huwo_jt808_frame{
-           header = Frame#huwo_jt808_frame.header#huwo_jt808_frame_header{
-                                             id = ID},
-           payload = Payload}).
-
 
 -type message_id() :: any().
 
@@ -94,6 +82,13 @@
          proto_ver,
          phone_os,
          work_mode = 0
+        }).
+
+-record(huwo_jt808_frame_ack,
+        {
+         ack_sn,
+         ack_id,
+         ack_code
         }).
 
 %% TODO: 需要研究消息内容对JT808协议是否有用途，如何修改
