@@ -462,7 +462,18 @@ session_present(Channel, ClientId)  ->
         _                     -> false
     end.
 
-make_will_msg(#mqtt_frame_connect{ will_flag   = false }) ->
+%% call(#mqtt_frame_connect{proto_ver = 3,
+%%                          will_retain = false,
+%%                          will_qos = 0,
+%%                          will_flag = false,
+%%                          clean_sess = true,
+%%                          keep_alive = 60,
+%%                          client_id = "mosqsub|73961-morgana",
+%%                          will_topic = undefined,
+%%                          will_msg = undefined,
+%%                          username = undefined,
+%%                          password = undefined}).
+make_will_msg(#huwo_jt808_frame_connect{ will_flag   = false }) ->
     undefined;
 make_will_msg(#mqtt_frame_connect{ will_retain = Retain,
                                    will_qos    = Qos,
@@ -474,6 +485,19 @@ make_will_msg(#mqtt_frame_connect{ will_retain = Retain,
                dup     = false,
                payload = Msg }.
 
+%% call (<<"guest">>,<<"guest">>,3,#proc_state.adapter_info#amqp_adapter_info.additional_info.append[{variable_map,#{<<"client_id">> => <<"mosqsub|73961-morgana">>}]}
+%% (<0.650.0>) returned from rabbit_mqtt_processor:process_login/4 ->
+%%     {0,
+%%      <0.653.0>,
+%%          <<"/">>,
+%%      {auth_state,
+%%       <<"guest">>,
+%%       {user,
+%%        <<"guest">>,
+%%        [administrator],
+%%        [{rabbit_auth_backend_internal,
+%%          none}]},
+%%       <<"/">>}}
 process_login(UserBin, PassBin, ProtoVersion,
               #proc_state{ channels     = {undefined, undefined},
                            socket       = Sock,

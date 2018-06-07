@@ -77,8 +77,13 @@
 -record(huwo_jt808_frame_connect,
         {
          client_id, % = client_type + mobile
-         clean_sess = true,
-         keep_alive = 60,
+         clean_sess  = true,
+         keep_alive  = 60,
+         will_retain = false,
+         will_qos    = 0,
+         will_flag   = false,
+         will_msg,
+         will_topic,
 
          mobile,
          client_name,
