@@ -77,10 +77,13 @@
 -record(huwo_jt808_frame_connect,
         {
          client_id, % = client_type + mobile
+         clean_sess = true,
+         keep_alive = 60,
+
          mobile,
          client_name,
-         username,
-         password,
+         username,  % string | list
+         password,  % string | list
          client_type,
          phone_model,
          proto_ver,

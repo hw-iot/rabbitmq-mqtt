@@ -108,14 +108,17 @@ process_request(?CONNECT,
                 #huwo_jt808_frame{
                    payload = #huwo_jt808_frame_connect{
                                 client_id = ClientId0,
+                                clean_sess = CleanSess,
+                                keep_alive = Keepalive,
+
                                 mobile = _Mobile,
                                 client_name = _ClientName,
                                 username = Username,
                                 password = Password,
                                 client_type = _ClientType,
                                 phone_model = _PhoneModel,
-                                proto_ver = ProtoVer,
-                                phone_os = _ProtoVer,
+                                proto_ver = ProtoVersion,
+                                phone_os = _ProtoOS,
                                 work_mode = _WorkMode} = _Payload},
                 PState0 = #proc_state{ ssl_login_name = SSLLoginName,
                                        send_fun       = SendFun,
@@ -130,17 +133,17 @@ process_request(?CONNECT,
                      additional_info =
                          [{variable_map, #{<<"client_id">> => rabbit_data_coercion:to_binary(ClientId)}} | Extra]},
     PState = PState0#proc_state{adapter_info = AdapterInfo1},
-    %% TODO hw-iot ----------------
-    ?DEBUG(process_login_case1, {lists:member(ProtoVer, proplists:get_keys(?PROTOCOL_NAMES)), ClientId =:= undefined}),
     {Return, PState1} =
-        case {lists:member(3, proplists:get_keys(?PROTOCOL_NAMES)),
-              ClientId =:= undefined} of
+        case {lists:member(ProtoVersion, proplists:get_keys(?PROTOCOL_NAMES)),
+              ClientId0 =:= [] andalso CleanSess =:= false} of
             {false, _} ->
                 {?CONNACK_PROTO_VER, PState};
             {_, true} ->
                 {?CONNACK_INVALID_ID, PState};
             _ ->
-                ?DEBUG(process_login_creds, creds(Username, Password, SSLLoginName)),
+                %% TODO hw-iot ----------------
+                %% call ("guest","guest",none)
+                %% returned {<<"guest">>, <<"guest">>}
                 case creds(Username, Password, SSLLoginName) of
                     nocreds ->
                         rabbit_log_connection:error("JT808 login failed: no credentials provided~n"),
@@ -152,7 +155,7 @@ process_request(?CONNECT,
                         rabbit_log_connection:error("JT808 login failed for ~p: no password provided", [User]),
                         {?CONNACK_CREDENTIALS, PState};
                     {UserBin, PassBin} ->
-                        case process_login(UserBin, PassBin, ProtoVer, PState) of
+                        case process_login(UserBin, PassBin, ProtoVersion, PState) of
                             {?CONNACK_ACCEPT, Conn, VHost, AState} ->
                                 RetainerPid =
                                     rabbit_mqtt_retainer_sup:child_for_vhost(VHost),
@@ -166,7 +169,6 @@ process_request(?CONNECT,
                                 Prefetch = rabbit_mqtt_util:env(prefetch),
                                 #'basic.qos_ok'{} = amqp_channel:call(
                                                       Ch, #'basic.qos'{prefetch_count = Prefetch}),
-                                Keepalive = 1000000,
                                 huwo_jt808_reader:start_keepalive(self(), Keepalive),
                                 {SP, ProcState} =
                                     maybe_clean_sess(
@@ -597,6 +599,33 @@ delivery_qos(_, _, _) ->
 %%     undefined   -> {?QOS_1, ?QOS_1}
 %% end.
 
+maybe_clean_sess(PState = #proc_state { clean_sess = false,
+                                        channels   = {Channel, _},
+                                        client_id  = ClientId }) ->
+    {_Queue, PState1} = ensure_queue(?QOS_1, PState),
+    SessionPresent = session_present(Channel, ClientId),
+    {SessionPresent, PState1};
+maybe_clean_sess(PState = #proc_state { clean_sess = true,
+                                        connection = Conn,
+                                        client_id  = ClientId }) ->
+    {_, Queue} = rabbit_mqtt_util:subcription_queue_name(ClientId),
+    {ok, Channel} = amqp_connection:open_channel(Conn),
+    try amqp_channel:call(Channel, #'queue.delete'{ queue = Queue }) of
+        #'queue.delete_ok'{} -> ok = amqp_channel:close(Channel)
+    catch
+        exit:_Error -> ok
+    end,
+    {false, PState}.
+
+session_present(Channel, ClientId)  ->
+    {_, QueueQ1} = rabbit_mqtt_util:subcription_queue_name(ClientId),
+    Declare = #'queue.declare'{queue   = QueueQ1,
+                               passive = true},
+    case amqp_channel:call(Channel, Declare) of
+        #'queue.declare_ok'{} -> true;
+        _                     -> false
+    end.
+
 %% TODO: messageid需要处理
 ensure_valid_mqtt_message_id(Id) when Id >= 16#ffff ->
     1;
@@ -771,69 +800,39 @@ human_readable_vhost_lookup_strategy(default_vhost) ->
 human_readable_vhost_lookup_strategy(Val) ->
     atom_to_list(Val).
 
-creds(_User, _Pass, _SSLLoginName) ->
+creds(User, Pass, SSLLoginName) ->
     DefaultUser   = rabbit_mqtt_util:env(default_user),
     DefaultPass   = rabbit_mqtt_util:env(default_pass),
-    {DefaultUser, DefaultPass}.
-%% TODO
-%% {ok, Anon}    = application:get_env(?APP, allow_anonymous),
-%% {ok, TLSAuth} = application:get_env(?APP, ssl_cert_login),
-%% HaveDefaultCreds = Anon =:= true andalso
-%%     is_binary(DefaultUser) andalso
-%%     is_binary(DefaultPass),
+    %% {DefaultUser, DefaultPass}.
+    %% TODO
+    {ok, Anon}    = application:get_env(?APP, allow_anonymous),
+    {ok, TLSAuth} = application:get_env(?APP, ssl_cert_login),
+    HaveDefaultCreds = Anon =:= true andalso
+        is_binary(DefaultUser) andalso
+        is_binary(DefaultPass),
 
-%% CredentialsProvided = User =/= undefined orelse
-%%     Pass =/= undefined,
+    CredentialsProvided = User =/= undefined orelse
+        Pass =/= undefined,
 
-%% CorrectCredentials = is_list(User) andalso
-%%     is_list(Pass),
+    CorrectCredentials = is_list(User) andalso
+        is_list(Pass),
 
-%% SSLLoginProvided = TLSAuth =:= true andalso
-%%     SSLLoginName =/= none,
+    SSLLoginProvided = TLSAuth =:= true andalso
+        SSLLoginName =/= none,
 
-%% case {CredentialsProvided, CorrectCredentials, SSLLoginProvided, HaveDefaultCreds} of
-%%     %% Username and password take priority
-%%     {true, true, _, _}          -> {list_to_binary(User),
-%%                                     list_to_binary(Pass)};
-%%     %% Either username or password is provided
-%%     {true, false, _, _}         -> {invalid_creds, {User, Pass}};
-%%     %% rabbitmq_jt808.ssl_cert_login is true. SSL user name provided.
-%%     %% Authenticating using username only.
-%%     {false, false, true, _}     -> {SSLLoginName, none};
-%%     %% Anonymous connection uses default credentials
-%%     {false, false, false, true} -> {DefaultUser, DefaultPass};
-%%     _                           -> nocreds
-%% end.
-
-
-
-maybe_clean_sess(PState = #proc_state { clean_sess = false,
-                                        channels   = {Channel, _},
-                                        client_id  = ClientId }) ->
-    {_Queue, PState1} = ensure_queue(?QOS_1, PState),
-    SessionPresent = session_present(Channel, ClientId),
-    {SessionPresent, PState1};
-maybe_clean_sess(PState = #proc_state { clean_sess = true,
-                                        connection = Conn,
-                                        client_id  = ClientId }) ->
-    {_, Queue} = rabbit_mqtt_util:subcription_queue_name(ClientId),
-    {ok, Channel} = amqp_connection:open_channel(Conn),
-    try amqp_channel:call(Channel, #'queue.delete'{ queue = Queue }) of
-        #'queue.delete_ok'{} -> ok = amqp_channel:close(Channel)
-    catch
-        exit:_Error -> ok
-    end,
-    {false, PState}.
-
-session_present(Channel, ClientId)  ->
-    {_, QueueQ1} = rabbit_mqtt_util:subcription_queue_name(ClientId),
-    Declare = #'queue.declare'{queue   = QueueQ1,
-                               passive = true},
-    case amqp_channel:call(Channel, Declare) of
-        #'queue.declare_ok'{} -> true;
-        _                     -> false
+    case {CredentialsProvided, CorrectCredentials, SSLLoginProvided, HaveDefaultCreds} of
+        %% Username and password take priority
+        {true, true, _, _}          -> {list_to_binary(User),
+                                        list_to_binary(Pass)};
+        %% Either username or password is provided
+        {true, false, _, _}         -> {invalid_creds, {User, Pass}};
+        %% rabbitmq_mqtt.ssl_cert_login is true. SSL user name provided.
+        %% Authenticating using username only.
+        {false, false, true, _}     -> {SSLLoginName, none};
+        %% Anonymous connection uses default credentials
+        {false, false, false, true} -> {DefaultUser, DefaultPass};
+        _                           -> nocreds
     end.
-
 
 supported_subs_qos(?QOS_0) -> ?QOS_0;
 supported_subs_qos(?QOS_1) -> ?QOS_1;

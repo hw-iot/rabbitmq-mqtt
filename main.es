@@ -72,8 +72,8 @@ test_parse_connect_frame()->
     Request0 = ?NEW_FRAME(#huwo_jt808_frame_connect{
                              mobile = "13896079527",
                              client_name = "huwo-jt808-erlang-client",
-                             username = "user",
-                             password = "pass",
+                             username = "guest",
+                             password = "guest",
                              client_type = 2,
                              phone_model = "iPhone 3G",
                              proto_ver = "201.1.1-huwo",
