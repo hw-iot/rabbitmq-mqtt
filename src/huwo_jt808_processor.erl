@@ -194,13 +194,16 @@ process_request(?CONNECT,
     %%                                    return_code = ReturnCode}},
     %%         PState1),
     SendFun(huwo_jt808_session:response(Request, ReturnCode), PState1),
-    %% TODO hw-iot ----------------
-
     Msg = #huwo_jt808_msg{ qos = ?QOS_0, payload = <<"bingo">>, topic = <<"topic">>},
     bin_utils:dump(process_request_publish_amqp_pub, Msg),
     amqp_pub(Msg, PState1),
+    %% TODO hw-iot ----------------
     process_subscribe(PState1),
-    {ok, PState1}.
+    {ok, PState1};
+process_request(_AnyType, #huwo_jt808_frame{payload = Payload}, PState) ->
+    Msg = #huwo_jt808_msg{ qos = ?QOS_0, payload = Payload, topic = <<"topic">>},
+    amqp_pub(Msg, PState),
+    {ok, PState}.
 
 %%---------------------------------------------------------------------
 hand_off_to_retainer(RetainerPid, Topic, #huwo_jt808_msg{payload = <<"">>}) ->
@@ -336,6 +339,18 @@ delivery_dup({#'basic.deliver'{ redelivered = Redelivered },
         undefined   -> Redelivered;
         {bool, Dup} -> Redelivered orelse Dup
     end.
+
+ensure_valid_mqtt_message_id(Id) when Id >= 16#ffff ->
+    1;
+ensure_valid_mqtt_message_id(Id) ->
+    Id.
+
+safe_max_id(Id0, Id1) ->
+    ensure_valid_mqtt_message_id(erlang:max(Id0, Id1)).
+
+next_msg_id(PState = #proc_state{ message_id = MsgId0 }) ->
+    MsgId1 = ensure_valid_mqtt_message_id(MsgId0 + 1),
+    PState#proc_state{ message_id = MsgId1 }.
 
 %% decide at which qos level to deliver based on subscription
 %% and the message publish qos level. non-MQTT publishes are
@@ -726,13 +741,14 @@ amqp_pub(#huwo_jt808_msg{ qos        = Qos,
                                unacked_pubs   = UnackedPubs,
                                awaiting_seqno = SeqNo }) ->
     Method = #'basic.publish'{ exchange    = Exchange,
-                               %% routing_key = <<"huwo.jt808">>
-                               routing_key = rabbit_mqtt_util:mqtt2amqp(Topic)},
+                               routing_key =
+                                   rabbit_mqtt_util:mqtt2amqp(Topic)},
     Headers = [{<<"x-mqtt-publish-qos">>, byte, Qos},
                {<<"x-mqtt-dup">>, bool, Dup}],
     Msg = #amqp_msg{ props   = #'P_basic'{ headers       = Headers,
                                            delivery_mode = delivery_mode(Qos)},
                      payload = Payload },
+    %% TODO clean
     {UnackedPubs1, Ch, SeqNo1} =
         case Qos =:= ?QOS_1 andalso MessageId =/= undefined of
             true  -> {gb_trees:enter(SeqNo, MessageId, UnackedPubs), ChQos1,
@@ -817,21 +833,6 @@ send_client(Response, #proc_state{ socket = Sock }) ->
     ?DEBUG(processor_send_client_frame, Frame),
     rabbit_net:port_command(Sock, Frame).
 
-safe_max_id(Id0, Id1) ->
-    ensure_valid_mqtt_message_id(erlang:max(Id0, Id1)).
-
-next_msg_id(PState = #proc_state{ message_id = MsgId0 }) ->
-    MsgId1 = ensure_valid_mqtt_message_id(MsgId0 + 1),
-    PState#proc_state{ message_id = MsgId1 }.
-
-
-
-%% TODO: messageid需要处理
-ensure_valid_mqtt_message_id(Id) when Id >= 16#ffff ->
-    1;
-ensure_valid_mqtt_message_id(Id) ->
-    Id.
-
 close_connection(PState = #proc_state{ connection = undefined }) ->
     PState;
 close_connection(PState = #proc_state{ connection = Connection,
@@ -839,18 +840,63 @@ close_connection(PState = #proc_state{ connection = Connection,
     %% todo: maybe clean session
     case ClientId of
         undefined -> ok;
-        %% TODO: ??? 需要解除MQTT依赖
         _         -> ok = huwo_jt808_collector:unregister(ClientId, self())
     end,
     %% ignore noproc or other exceptions to avoid debris
     catch amqp_connection:close(Connection),
     PState #proc_state{ channels   = {undefined, undefined},
                         connection = undefined }.
+%%---------------------------------------------------------------------
 
+                                                % NB: check_*: MQTT spec says we should ack normally, ie pretend there
+                                                % was no auth error, but here we are closing the connection with an error. This
+                                                % is what happens anyway if there is an authorization failure at the AMQP level.
 
-%% info()
-%% 返回进程状态的指定值
+check_publish(TopicName, Fn, PState) ->
+    case check_topic_access(TopicName, write, PState) of
+        ok -> Fn();
+        _ -> {err, unauthorized, PState}
+    end.
 
+check_subscribe([], Fn, _) ->
+    Fn();
+
+check_subscribe([#mqtt_topic{name = TopicName} | Topics], Fn, PState) ->
+    case check_topic_access(TopicName, read, PState) of
+        ok -> check_subscribe(Topics, Fn, PState);
+        _ -> {err, unauthorized, PState}
+    end.
+
+check_topic_access(TopicName, Access,
+                   #proc_state{
+                      auth_state = #auth_state{user = User = #user{username = Username},
+                                               vhost = VHost},
+                      exchange = Exchange,
+                      client_id = ClientId}) ->
+    Resource = #resource{virtual_host = VHost,
+                         kind = topic,
+                         name = Exchange},
+
+    Context = #{routing_key  => rabbit_mqtt_util:mqtt2amqp(TopicName),
+                variable_map => #{
+                                  <<"username">>  => Username,
+                                  <<"vhost">>     => VHost,
+                                  <<"client_id">> => rabbit_data_coercion:to_binary(ClientId)
+                                 }
+               },
+
+    try rabbit_access_control:check_topic_access(User, Resource, Access, Context) of
+        R -> R
+    catch
+        _:{amqp_error, access_refused, Msg, _} ->
+            rabbit_log:error("operation resulted in an error (access_refused): ~p~n", [Msg]),
+            {error, access_refused};
+        _:Error ->
+            rabbit_log:error("~p~n", [Error]),
+            {error, access_refused}
+    end.
+
+%% 返回进程状态的指定值
 info(consumer_tags, #proc_state{consumer_tags = Val}) -> Val;
 info(unacked_pubs, #proc_state{unacked_pubs = Val}) -> Val;
 info(awaiting_ack, #proc_state{awaiting_ack = Val}) -> Val;
@@ -892,45 +938,3 @@ additional_info(Key,
                 #proc_state{adapter_info =
                                 #amqp_adapter_info{additional_info = AddInfo}}) ->
     proplists:get_value(Key, AddInfo).
-
-%%---------------------------------------------------------------------
-%% private
-
-
-check_subscribe([], Fn, _) ->
-    Fn();
-
-check_subscribe([#mqtt_topic{name = TopicName} | Topics], Fn, PState) ->
-    case check_topic_access(TopicName, read, PState) of
-        ok -> check_subscribe(Topics, Fn, PState);
-        _ -> {err, unauthorized, PState}
-    end.
-
-check_topic_access(TopicName, Access,
-                   #proc_state{
-                      auth_state = #auth_state{user = User = #user{username = Username},
-                                               vhost = VHost},
-                      exchange = Exchange,
-                      client_id = ClientId}) ->
-    Resource = #resource{virtual_host = VHost,
-                         kind = topic,
-                         name = Exchange},
-
-    Context = #{routing_key  => rabbit_mqtt_util:mqtt2amqp(TopicName),
-                variable_map => #{
-                                  <<"username">>  => Username,
-                                  <<"vhost">>     => VHost,
-                                  <<"client_id">> => rabbit_data_coercion:to_binary(ClientId)
-                                 }
-               },
-
-    try rabbit_access_control:check_topic_access(User, Resource, Access, Context) of
-        R -> R
-    catch
-        _:{amqp_error, access_refused, Msg, _} ->
-            rabbit_log:error("operation resulted in an error (access_refused): ~p~n", [Msg]),
-            {error, access_refused};
-        _:Error ->
-            rabbit_log:error("~p~n", [Error]),
-            {error, access_refused}
-    end.
