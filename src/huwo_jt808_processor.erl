@@ -748,7 +748,6 @@ amqp_pub(#huwo_jt808_msg{ qos        = Qos,
     Msg = #amqp_msg{ props   = #'P_basic'{ headers       = Headers,
                                            delivery_mode = delivery_mode(Qos)},
                      payload = Payload },
-    %% TODO clean
     {UnackedPubs1, Ch, SeqNo1} =
         case Qos =:= ?QOS_1 andalso MessageId =/= undefined of
             true  -> {gb_trees:enter(SeqNo, MessageId, UnackedPubs), ChQos1,
@@ -780,7 +779,6 @@ process_subscribe(Topics,
                      channels = {Channel, _},
                      exchange = Exchange,
                      retainer_pid = RPid,
-                     %% TODO renmae PState1
                      message_id  = StateMsgId} = PState0) ->
     SubscribeMsgId = 1,
     check_subscribe(
