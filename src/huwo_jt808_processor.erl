@@ -198,7 +198,7 @@ process_request(?CONNECT,
     bin_utils:dump(process_request_publish_amqp_pub, Msg),
     amqp_pub(Msg, PState1),
     %% TODO hw-iot ----------------
-    process_subscribe(PState1),
+    process_subscribe([#huwo_topic{name = "topic", qos=2}], PState1),
     {ok, PState1};
 process_request(_AnyType, #huwo_jt808_frame{payload = Payload}, PState) ->
     Msg = #huwo_jt808_msg{ qos = ?QOS_0, payload = Payload, topic = <<"topic">>},
@@ -763,22 +763,34 @@ adapter_info(Sock, ProtoName) ->
     amqp_connection:socket_adapter_info(Sock, {ProtoName, "N/A"}).
 
 
-process_subscribe(#proc_state{
+%% Topics = [#huwo_topic{name = "topic", qos=2}],
+%% process_request(?SUBSCRIBE,
+%%                 #mqtt_frame{
+%%                    variable = #mqtt_frame_subscribe{
+%%                                  message_id  = SubscribeMsgId,
+%%                                  topic_table = Topics},
+%%                    payload = undefined},
+%%                 #proc_state{channels = {Channel, _},
+%%                             exchange = Exchange,
+%%                             retainer_pid = RPid,
+%%                             send_fun = SendFun,
+%%                             message_id  = StateMsgId} = PState0) ->
+process_subscribe(Topics,
+                  #proc_state{
                      channels = {Channel, _},
                      exchange = Exchange,
                      retainer_pid = RPid,
-                     send_fun = _SendFun,
-                     message_id  = StateMsgId} = PState1) ->
-    Topics = [#huwo_topic{name = "topic", qos=2}],
+                     %% TODO renmae PState1
+                     message_id  = StateMsgId} = PState0) ->
     SubscribeMsgId = 1,
     check_subscribe(
       Topics,
       fun() ->
-              {_QosResponse, PState2} =
+              {_QosResponse, PState1} =
                   lists:foldl(
                     fun (#huwo_topic{name = TopicName, qos  = Qos}, {QosList, PState3}) ->
                             SupportedQos = supported_subs_qos(Qos),
-                            {Queue, #proc_state{subscriptions = Subs} = PState2} =
+                            {Queue, #proc_state{subscriptions = Subs} = PState1} =
                                 ensure_queue(SupportedQos, PState3),
                             Binding = #'queue.bind'{
                                          queue       = Queue,
@@ -791,26 +803,27 @@ process_subscribe(#proc_state{
                                                    error   -> [SupportedQos]
                                                end,
                             {[SupportedQos | QosList],
-                             PState2 #proc_state{
+                             PState1 #proc_state{
                                subscriptions =
                                    maps:put(TopicName, SupportedQosList, Subs)}}
-                    end, {[], PState1}, Topics),
+                    end, {[], PState0}, Topics),
               %% SendFun(#mqtt_frame{fixed    = #mqtt_frame_fixed{type = ?SUBACK},
               %%                     variable = #mqtt_frame_suback{
               %%                                   message_id = SubscribeMsgId,
-              %%                                   qos_table  = QosResponse}}, PState2),
+              %%                                   qos_table  = QosResponse}}, PState1),
+
               %% we may need to send up to length(Topics) messages.
               %% if QoS is > 0 then we need to generate a message id,
               %% and increment the counter.
               StartMsgId = safe_max_id(SubscribeMsgId, StateMsgId),
               N = lists:foldl(fun (Topic, Acc) ->
-                                      case maybe_send_retained_message(RPid, Topic, Acc, PState2) of
+                                      case maybe_send_retained_message(RPid, Topic, Acc, PState1) of
                                           {true, X} -> Acc + X;
                                           false     -> Acc
                                       end
                               end, StartMsgId, Topics),
-              {ok, PState2#proc_state{message_id = N}}
-      end, PState1).
+              {ok, PState1#proc_state{message_id = N}}
+      end, PState0).
 
 %%-----------------------------------------------------------------------
 
