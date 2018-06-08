@@ -91,6 +91,12 @@
          ack_code
         }).
 
+-record(huwo_jt808_frame_unknown,
+        {
+         foo,
+         bar
+        }).
+
 %% TODO: 需要研究消息内容对JT808协议是否有用途，如何修改
 -record(huwo_jt808_msg,       {retain :: boolean(),
                                qos :: ?QOS_0 | ?QOS_1 | ?QOS_2,

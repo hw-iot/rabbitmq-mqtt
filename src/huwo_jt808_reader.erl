@@ -278,31 +278,30 @@ process_received_bytes(Bytes,
             {noreply,
              ensure_stats_timer(control_throttle( State #state{ parse_state = ParseState1 })),
              hibernate};
-        {ok, Frame, _Rest}->
-            %% TODO
-            %% case rabbit_mqtt_processor:process_frame(Frame, ProcState) of
-            %%     {ok, ProcState1, ConnPid} ->
-            %%         PS = rabbit_mqtt_frame:initial_state(),
-            %%         process_received_bytes(
-            %%           Rest,
-            %%           State #state{ parse_state = PS,
-            %%                         proc_state = ProcState1,
-            %%                         connection = ConnPid });
-            %%     {error, Reason, ProcState1} ->
-            %%         rabbit_log_connection:info("MQTT protocol error ~p for connection ~s~n",
-            %%             [Reason, ConnStr]),
-            %%         {stop, {shutdown, Reason}, pstate(State, ProcState1)};
-            %%     {error, Error} ->
-            %%         rabbit_log_connection:error("MQTT detected framing error '~p' for connection ~s~n",
-            %%             [Error, ConnStr]),
-            %%         {stop, {shutdown, Error}, State};
-            %%     {stop, ProcState1} ->
-            %%         {stop, normal, pstate(State, ProcState1)};
-            %%     {err, unauthorized = Reason, ProcState1} ->
-            %%         {stop, {shutdown, Reason}, pstate(State, ProcState1)}
-            %% end;
-            huwo_jt808_processor:process_frame(Frame, ProcState),
-            {noreply, ensure_stats_timer(State#state{ received_connect_frame = true }), hibernate};
+        {ok, Frame, Rest}->
+            case huwo_jt808_processor:process_frame(Frame, ProcState) of
+                {ok, ProcState1, ConnPid} ->
+                    PS = huwo_jt808_frame:initial_state(),
+                    process_received_bytes(
+                      Rest,
+                      State #state{ parse_state = PS,
+                                    proc_state = ProcState1,
+                                    connection = ConnPid });
+                {error, Reason, ProcState1} ->
+                    rabbit_log_connection:info("JT808 protocol error ~p for connection ~s~n",
+                                               [Reason, ConnStr]),
+                    {stop, {shutdown, Reason}, pstate(State, ProcState1)};
+                {error, Error} ->
+                    rabbit_log_connection:error("JT808 detected framing error '~p' for connection ~s~n",
+                                                [Error, ConnStr]),
+                    {stop, {shutdown, Error}, State};
+                {stop, ProcState1} ->
+                    {stop, normal, pstate(State, ProcState1)};
+                {err, unauthorized = Reason, ProcState1} ->
+                    {stop, {shutdown, Reason}, pstate(State, ProcState1)}
+            end;
+        %% huwo_jt808_processor:process_frame(Frame, ProcState),
+        %% {noreply, ensure_stats_timer(State#state{ received_connect_frame = true }), hibernate};
         {error, {cannot_parse, Error, Stacktrace}} ->
             rabbit_log_connection:error("JT808 cannot parse frame for connection '~s', unparseable payload: ~p, error: {~p, ~p} ~n",
                                         [ConnStr, Bytes, Error, Stacktrace]),

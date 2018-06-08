@@ -83,31 +83,10 @@ parse_body(#huwo_jt808_frame_header{ id = ?CONNECT }, Body) ->
             proto_ver = ProtoVer,
             phone_os = ProtoOS,
             work_mode = WorkMode}};
-parse_body(_Header, Body) ->
+parse_body(_AnyHeader, Body) ->
     {ok, Body}.
 
-%% serialise(#huwo_jt808_frame{
-%%              header = #huwo_jt808_frame_header{
-%%                          id = Id,
-%%                          aes = Aes,
-%%                          zip = Zip,
-%%                          divide = Divide,
-%%                          timestamp = Timestamp,
-%%                          sn = SN
-%%                         },
-%%              payload = Payload}) ->
-%%     BCDTimestamp = bin_utils:bcd_encode(Timestamp, 6),
-%%     Len = byte_size(Payload),
-%%     Checksum = checksum(Payload),
-%%     Property = <<Aes:1, Zip:1, Divide:1, Len:13>>,
-%%     Body = <<Id:16,
-%%              Property:2/binary,
-%%              BCDTimestamp:6/binary,
-%%              SN:16,
-%%              Payload:Len/binary,
-%%              Checksum:1/binary>>,
-%%     <<?FLAG_BOUNDARY, (escape(Body))/binary, ?FLAG_BOUNDARY>>.
-
+%% serialise(huwo_jt808_frame())
 serialise(#huwo_jt808_frame{ header = Header, payload = Payload0 }) ->
     Payload = serialise_payload(Payload0),
     serialise_frame(Header, Payload);
@@ -133,7 +112,9 @@ serialise_payload(#huwo_jt808_frame_ack{
                      ack_sn = SN,
                      ack_id = ID,
                      ack_code = ReturnCode}) ->
-    <<?UINT16(SN), ?UINT16(ID), ?UINT8(ReturnCode)>>.
+    <<?UINT16(SN), ?UINT16(ID), ?UINT8(ReturnCode)>>;
+serialise_payload(Any) ->
+    term_to_binary(Any).
 
 serialise_frame(#huwo_jt808_frame_header{
                    id = Id,

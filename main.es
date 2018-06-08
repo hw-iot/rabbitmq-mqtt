@@ -8,6 +8,7 @@
 -include("include/huwo_jt808.hrl").
 -include("include/huwo_jt808_frame.hrl").
 
+%% TODO move to make tests
 test_huwo_jt808_frame()->
     PackageOrigin = #huwo_jt808_frame{
                        header = #huwo_jt808_frame_header{
@@ -79,8 +80,7 @@ test_parse_connect_frame()->
 
     %% parse connect frame
     {ok, Request, _Rest} = huwo_jt808_frame:parse(Frame, none),
-    huwo_jt808_frame:dump(Request),
-    ok.
+    huwo_jt808_frame:dump(Request).
 
 test_gen_ack()->
     Connect = gen_connect_frame(),
@@ -90,9 +90,23 @@ test_gen_ack()->
     Frame = huwo_jt808_frame:serialise(Ack),
     bin_utils:dump(frame, Frame).
 
+test_frame_unknown()->
+    Request0 = huwo_jt808_session:warp(
+                {42, 1,
+                 #huwo_jt808_frame_unknown{
+                    foo = "xinyi",
+                    bar = "lee"}}),
+    Frame = huwo_jt808_frame:serialise(Request0),
+    bin_utils:dump(frame, Frame),
+
+    {ok, Request, _Rest} = huwo_jt808_frame:parse(Frame, none),
+    huwo_jt808_frame:dump(Request).
+
+
 main(_) ->
     %% test_huwo_jt808_frame(),
     %% test_serialise_connect_frame(),
     %% test_parse_connect_frame(),
-    test_gen_ack(),
+    %% test_gen_ack(),
+    test_frame_unknown(),
     io:fwrite("~n").
