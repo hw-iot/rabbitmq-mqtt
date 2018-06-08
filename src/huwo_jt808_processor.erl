@@ -215,7 +215,7 @@ hand_off_to_retainer(RetainerPid, Topic, Msg) ->
     rabbit_mqtt_retainer:retain(RetainerPid, Topic, Msg),
     ok.
 
-maybe_send_retained_message(RPid, #mqtt_topic{name = S, qos = SubscribeQos}, MsgId,
+maybe_send_retained_message(RPid, #huwo_topic{name = S, qos = SubscribeQos}, MsgId,
                             #proc_state{ send_fun = SendFun } = PState) ->
     case rabbit_mqtt_retainer:fetch(RPid, S) of
         undefined -> false;
@@ -769,14 +769,14 @@ process_subscribe(#proc_state{
                      retainer_pid = RPid,
                      send_fun = _SendFun,
                      message_id  = StateMsgId} = PState1) ->
-    Topics = [#mqtt_topic{name = "topic", qos=2}],
+    Topics = [#huwo_topic{name = "topic", qos=2}],
     SubscribeMsgId = 1,
     check_subscribe(
       Topics,
       fun() ->
               {_QosResponse, PState2} =
                   lists:foldl(
-                    fun (#mqtt_topic{name = TopicName, qos  = Qos}, {QosList, PState3}) ->
+                    fun (#huwo_topic{name = TopicName, qos  = Qos}, {QosList, PState3}) ->
                             SupportedQos = supported_subs_qos(Qos),
                             {Queue, #proc_state{subscriptions = Subs} = PState2} =
                                 ensure_queue(SupportedQos, PState3),
@@ -848,20 +848,20 @@ close_connection(PState = #proc_state{ connection = Connection,
                         connection = undefined }.
 %%---------------------------------------------------------------------
 
-                                                % NB: check_*: MQTT spec says we should ack normally, ie pretend there
-                                                % was no auth error, but here we are closing the connection with an error. This
-                                                % is what happens anyway if there is an authorization failure at the AMQP level.
-
-check_publish(TopicName, Fn, PState) ->
-    case check_topic_access(TopicName, write, PState) of
-        ok -> Fn();
-        _ -> {err, unauthorized, PState}
-    end.
+%% NB: check_*: MQTT spec says we should ack normally, ie pretend there
+%% was no auth error, but here we are closing the connection with an error. This
+%% is what happens anyway if there is an authorization failure at the AMQP level.
+%% TODO
+%% check_publish(TopicName, Fn, PState) ->
+%%     case check_topic_access(TopicName, write, PState) of
+%%         ok -> Fn();
+%%         _ -> {err, unauthorized, PState}
+%%     end.
 
 check_subscribe([], Fn, _) ->
     Fn();
 
-check_subscribe([#mqtt_topic{name = TopicName} | Topics], Fn, PState) ->
+check_subscribe([#huwo_topic{name = TopicName} | Topics], Fn, PState) ->
     case check_topic_access(TopicName, read, PState) of
         ok -> check_subscribe(Topics, Fn, PState);
         _ -> {err, unauthorized, PState}
