@@ -92,21 +92,56 @@ test_gen_ack()->
 
 test_frame_unknown()->
     Request0 = huwo_jt808_session:warp(
-                {42, 1,
-                 #huwo_jt808_frame_unknown{
-                    foo = "xinyi",
-                    bar = "lee"}}),
+                 {42, 1,
+                  #huwo_jt808_frame_unknown{
+                     foo = "xinyi",
+                     bar = "lee"}}),
     Frame = huwo_jt808_frame:serialise(Request0),
     bin_utils:dump(frame, Frame),
 
     {ok, Request, _Rest} = huwo_jt808_frame:parse(Frame, none),
     huwo_jt808_frame:dump(Request).
 
+test_data_type() ->
+    Uint8  = 254,
+    Uint16 = 254,
+    Uint32 = 254,
+
+    Bin = <<?UINT8_OF(Uint8), ?UINT16_OF(Uint16), ?UINT32_OF(Uint32),
+            ?UINT_OF(Uint8, 8)>>,
+    ?DEBUG(dt, Bin).
+
+serialise_header() ->
+    MessageID = 16#0100,
+    Mobile = 13896079527,
+    MessageSN = 42,
+
+    Segmentation = ?NO_SEGMENT,
+    Encryption = ?NO_ENCRYPT,
+    Length = 1,
+
+    <<?UINT16_OF(MessageID),
+      ?WORD_OF(<<Segmentation:3, Encryption:3, Length:10>>),
+      ?BCD_OF(Mobile, 6),
+      ?UINT16_OF(MessageSN)>>.
+
+test_serialise_v2() ->
+    Header = serialise_header(),
+    <<?UINT16(MessageID),
+      ?WORD(MessageProperty),
+      ?BCD(Mobile0, 6),
+      ?UINT16(MessageSN),
+      ?BYTE(_)>> = Header,
+    <<_Reserved:2, Segmentation:1, Encryption:3, Length:10>> = MessageProperty,
+    Mobile = ?BCD_VALUE(Mobile0),
+    ?DEBUG(parse, {MessageID, MessageSN, Mobile, Segmentation, Encryption, Length}).
 
 main(_) ->
     %% test_huwo_jt808_frame(),
     %% test_serialise_connect_frame(),
     %% test_parse_connect_frame(),
     %% test_gen_ack(),
-    test_frame_unknown(),
+    %% test_frame_unknown(),
+    %% test_data_type(),
+    test_serialise_v2(),
     io:fwrite("~n").

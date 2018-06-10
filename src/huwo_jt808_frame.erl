@@ -20,20 +20,44 @@ initial_state() -> none.
 %% API
 parse(<<>>, none) ->
     {more, fun(Bin) -> parse(Bin, none) end};
-parse(<<?FLAG_BOUNDARY, Id:16, Property:2/binary, Timestamp:6/binary, SN:16, Rest/binary>>, none) ->
-    <<Aes:1, Zip:1, Divide:1, Len:13>> = Property,
-    Header = #huwo_jt808_frame_header{
-                id        = Id,
-                aes       = Aes,
-                zip       = Zip,
-                divide    = Divide,
-                length    = Len,
-                timestamp = bin_utils:bcd_decode(Timestamp),
-                sn        = SN},
-    parse_frame(Rest, Header, Len);
+parse(<<FlagBoundary:8, Rest/binary>>, none) ->
+    case lists:member(FlagBoundary, ?FLAG_BOUNDARYS) of
+        true ->
+            parse_header(Rest, #parse_state{flag_boundary = FlagBoundary});
+        _ ->
+            parse(Rest, none)
+    end;
 parse(Bin, Cont) ->
     bin_utils:dump(frame_parse_func, Cont),
     Cont(Bin).
+
+parse_header(<<>>, ParseState) ->
+    {more, fun(Bin) -> parse_header(Bin, ParseState) end};
+parse_header(<<?UINT16(MessageID),
+               ?WORD(MessageProperty),
+               ?BCD(Mobile, 6),
+               ?UINT16(MessageSN),
+               Rest0/binary>>,
+             ParseState0) ->
+    <<_Reserved:2, Segmentation:1, _Encryption:3, Length:10>>
+        = MessageProperty,
+    {Rest, ParseState} =
+        case Segmentation of
+            ?NO_SEGMENT -> {Rest0, ParseState0};
+            _ -> <<?UINT16(SegmentNum), ?UINT16(SegmentSN), Rest1/binary>>
+                     = Rest0,
+                 {Rest1, ParseState0#parse_state{
+                           segment_num = SegmentNum,
+                           segment_sn = SegmentSN
+                          }}
+        end,
+    Header = #huwo_jt808_frame_header{
+                message_id = MessageID,
+                message_sn = MessageSN,
+                mobile = ?BCD_VALUE(Mobile),
+                length = Length
+               },
+    parse_frame(Rest, Header, Length, ParseState).
 
 %% Bin: received data
 %% Header: jt808 header
@@ -42,23 +66,36 @@ parse(Bin, Cont) ->
 %% {error, Reason}
 %% {more, ParseFunc}
 %% {ok, #huwo_jt808_frame, Rest}
-parse_frame(_Bin, _Header, Len) when Len > ?MAX_LEN ->
+parse_frame(_Bin, _Header, Len, _ParseState) when Len > ?MAX_LEN ->
     {error, invalid_jt808_frame_len};
-parse_frame(<<>>, Header, Len) ->
-    {more, fun(Bin) -> parse_frame(Bin, Header, Len) end};
-parse_frame(Bin, Header, Len) ->
+parse_frame(<<>>, Header, Len, ParseState) ->
+    {more, fun(Bin) -> parse_frame(Bin, Header, Len, ParseState) end};
+parse_frame(TooShortBin, Header, Len, ParseState)
+  when byte_size(TooShortBin) < Len ->
+    {more, fun(BinMore) ->
+                   parse_frame(<<TooShortBin/binary, BinMore/binary>>,
+                               Header, Len, ParseState)
+           end};
+parse_frame(Bin, Header, Len,
+            #parse_state{flag_boundary = FlagBoundary} = ParseState) ->
     case Bin of
-        <<Body:Len/binary, _CheckSum:8, ?FLAG_BOUNDARY, Rest/binary>> ->
-            case parse_body(Header, Body) of
-                {ok, Payload} ->
-                    {ok, #huwo_jt808_frame{header = Header, payload = Payload}, Rest};
-                _ ->
-                    {error, frame_data_corrupt}
+        <<Body:Len/binary, ?UINT8(CheckSum0),
+          ?UINT8(FlagBoundary), Rest/binary>> ->
+            Checksum = checksum(Body),
+            case Checksum == CheckSum0 of
+                true ->
+                    case parse_body(Header, Body) of
+                        {ok, Payload} ->
+                            {ok, #huwo_jt808_frame{
+                                    header = Header, payload = Payload}, Rest};
+                        _ ->
+                            {error, frame_data_corrupt}
+                    end;
+                false ->
+                    {error, invalid_checksum}
             end;
-        TooShortBin ->
-            {more, fun(BinMore) ->
-                           parse_frame(<<TooShortBin/binary, BinMore/binary>>, Header, Len)
-                   end}
+        _ANY ->
+            {more, fun(NewBin) -> parse_frame(NewBin, Header, Len, ParseState) end}
     end.
 
 parse_body(#huwo_jt808_frame_header{ id = ?CONNECT }, Body) ->

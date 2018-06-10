@@ -1,13 +1,39 @@
 -define(PROTOCOL_NAMES,  [{3, "JT808 3"}, {<<"201.1.1-huwo">>, "JT808-201.1-huwo"}]).
 
 -define(FLAG_BOUNDARY, 16#3E).
+-define(FLAG_BOUNDARYS, [16#7E, 16#3E]).
 -define(ESCAPED_3E, <<16#3D, 16#02>>).
 -define(ESCAPED_3D, <<16#3D, 16#01>>).
 
--define(STRING0(Val), (list_to_binary(Val))/binary, <<0,0>>/binary).
--define(UINT8(Val), Val:8).
--define(UINT16(Val), Val:16).
+-define(RESERVED, 0).
+%%----------------------------------------- enum
+-define(NO_SEGMENT,   0).
+-define(NEED_SEGMENT, 1).
 
+-define(NO_ENCRYPT,  0).
+-define(RSA_ENCRYPT, 1).
+
+-define(STRING0(Val), (list_to_binary(Val))/binary, <<0,0>>/binary).
+
+%%----------------------------------------- data types
+-define(UINT8_OF(Val),   Val:8).
+-define(UINT16_OF(Val),  Val:16).
+-define(UINT32_OF(Val),  Val:32).
+-define(UINT_OF(Val, N), Val:(N*8)).
+-define(BYTE_OF(Val),    Val/binary).
+-define(WORD_OF(Val),    Val:2/binary).
+-define(DWORD_OF(Val),   Val:4/binary).
+-define(BCD_OF(Val, N),  (bin_utils:bcd_encode(Val, N))/binary).
+
+%%-----------------------------------------
+-define(UINT8(Val),  Val:8).
+-define(UINT16(Val), Val:16).
+-define(UINT32(Val), Val:32).
+-define(BYTE(Val),   Val/binary).
+-define(WORD(Val),   Val:2/binary).
+-define(BCD(Val, N), Val:N/binary).
+
+-define(BCD_VALUE(Val), bin_utils:bcd_decode(Val)).
 %% TODO return string?
 %% returned binary
 -define(PARSE_STRING0(Payload, Key, Rest), [Key, Rest] = binary:split(Payload, [<<0,0>>])).
@@ -53,6 +79,10 @@
 
 -record(huwo_jt808_frame_header,
         {
+         message_id,
+         message_sn,
+         mobile,
+
          id,
          aes     = 0,
          zip     = 0,
@@ -136,3 +166,7 @@
                               dup :: boolean(),
                               message_id :: message_id(),
                               payload :: binary()}).
+
+-record(parse_state, {flag_boundary,
+                      segment_num,
+                      segment_sn}).
