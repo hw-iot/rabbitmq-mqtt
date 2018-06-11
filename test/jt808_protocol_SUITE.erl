@@ -5,49 +5,24 @@
 -include_lib("eunit/include/eunit.hrl").
 -include("huwo_jt808_frame.hrl").
 
--import(huwo_jt808_frame, [escape/1]).
-
--define(
-   assertBinaryEqual(Expected, Actual),
-   ?assertEqual(iolist_to_binary(Expected), iolist_to_binary(Actual))
-  ).
+-import(huwo_jt808_frame, [escape/2, unescape/2]).
 
 all() ->
     [{group, message}].
 
 groups() ->
     [{message, [],
-      [parse_content,
+      [test_escape_7e,
+       test_escape_3e]}].
 
-       message_foo,
-       message_escape]}].
+test_escape_7e(_) ->
+    Origin = <<16#30, 16#7E, 16#08, 16#7D, 16#55, 16#7E>>,
+    Escaped = <<16#30, 16#7D, 16#02, 16#08, 16#7D, 16#01, 16#55, 16#7D, 16#02>>,
+    ?assertEqual(escape(Origin, ?FB_7E), Escaped),
+    ?assertEqual(unescape(Escaped, ?FB_7E), Origin).
 
-
-message_foo(_) ->
-    In = <<16#30, 16#3E, 16#08, 16#3D, 16#55>>,
-    Out = <<16#30, 16#3D, 16#02, 16#08, 16#3D, 16#01, 16#55>>,
-
-    Eq = In =:= Out,
-    ct:print("message_escape: ~p == ~p is ~p", [In, Out, Eq]).
-
-message_escape(_) ->
-    In = <<16#30, 16#3E, 16#08, 16#3D, 16#55>>,
-    Out = <<16#30, 16#3D, 16#02, 16#08, 16#3D, 16#01, 16#55>>,
-    ?assertBinaryEqual(escape(In), Out),
-
-    In2 = <<16#30, 16#3E, 16#08, 16#3D, 16#55, 16#3E>>,
-    Out2 = <<16#30, 16#3D, 16#02, 16#08, 16#3D, 16#01, 16#55, 16#3D, 16#02>>,
-    ?assertBinaryEqual(escape(In2), Out2).
-
-
-parse_content(_) ->
-    In1 = <<16#08, 16#3D, 16#3E>>,
-    Out1 = <<>>,
-
-    ?assertBinaryEqual(huwo_jt808_frame:parse_content(In1, ?FLAG_BOUNDARY), Out1),
-
-
-    In10 = <<16#3E, 16#08, 16#3D, 16#3E>>,
-    Out10 = <<16#08, 16#3D>>,
-
-    ?assertBinaryEqual(huwo_jt808_frame:parse_content(In10, ?FLAG_BOUNDARY), Out10).
+test_escape_3e(_) ->
+    Origin = <<16#30, 16#3E, 16#08, 16#3D, 16#55, 16#3E>>,
+    Escaped = <<16#30, 16#3D, 16#02, 16#08, 16#3D, 16#01, 16#55, 16#3D, 16#02>>,
+    ?assertEqual(escape(Origin, ?FB_3E), Escaped),
+    ?assertEqual(unescape(Escaped, ?FB_3E), Origin).

@@ -6,8 +6,7 @@
 
 -export([initial_state/0]).
 -export([parse/2, serialise/1]).
--export([parse_content/2]).
--export([escape/1]).
+-export([escape/2, unescape/2]).
 -export([dump/1]).
 
 -include("huwo_jt808.hrl").
@@ -79,11 +78,15 @@ parse_frame(TooShortBin, Header, Len, ParseState)
 parse_frame(Bin, Header, Len,
             #parse_state{flag_boundary = FlagBoundary} = ParseState) ->
     case Bin of
-        <<Body:Len/binary, ?UINT8(CheckSum0),
+        <<Body0:Len/binary, ?UINT8(CheckSum0),
           ?UINT8(FlagBoundary), Rest/binary>> ->
-            Checksum = checksum(Body),
-            case Checksum == CheckSum0 of
+            CheckSum = checksum(Body0),
+            ?DEBUG(checksum, CheckSum),
+            ?DEBUG(checksum, CheckSum0),
+            ?DEBUG(checksum, {CheckSum0, CheckSum}),
+            case CheckSum == CheckSum0 of
                 true ->
+                    Body = unescape(Body0, FlagBoundary),
                     case parse_body(Header, Body) of
                         {ok, Payload} ->
                             {ok, #huwo_jt808_frame{
@@ -154,59 +157,80 @@ serialise_payload(Any) ->
     term_to_binary(Any).
 
 serialise_frame(#huwo_jt808_frame_header{
-                   id = Id,
-                   aes = Aes,
-                   zip = Zip,
-                   divide = Divide,
-                   timestamp = Timestamp,
-                   sn = SN
+                   id = MessageID,
+                   sn = MessageSN
                   }, Payload)->
-    BCDTimestamp = bin_utils:bcd_encode(Timestamp, 6),
-    Len = byte_size(Payload),
-    Checksum = checksum(Payload),
-    Property = <<Aes:1, Zip:1, Divide:1, Len:13>>,
-    Body = <<Id:16,
-             Property:2/binary,
-             BCDTimestamp:6/binary,
-             SN:16,
-             Payload:Len/binary,
-             Checksum:1/binary>>,
-    <<?FLAG_BOUNDARY, (escape(Body))/binary, ?FLAG_BOUNDARY>>.
+    Mobile = 13896079527,
+    Segmentation = ?NO_SEGMENT,
+    Encryption = ?NO_ENCRYPT,
+
+    Length = byte_size(Payload),
+    CheckSum = checksum(Payload),
+
+    Body = <<?UINT16_OF(MessageID),
+             ?WORD_OF(<<Segmentation:3, Encryption:3, Length:10>>),
+             ?BCD_OF(Mobile, 6),
+             ?UINT16_OF(MessageSN),
+             ?BYTES_OF(Payload, Length),
+             ?UINT8_OF(CheckSum)>>,
+    FlagBoundary = ?FB_7E,
+    <<FlagBoundary, (escape(Body, FlagBoundary))/binary, FlagBoundary>>.
 
 %% internal
-parse_content(Frame, Flag) ->
-    parse_content(Frame, Flag, <<>>).
+%% parse_content(Frame, Flag) ->
+%%     parse_content(Frame, Flag, <<>>).
 
-parse_content(<<Flag>>, Flag, Acc) ->
-    unescape(Acc);
-parse_content(<<Flag, Rest/binary>>, Flag, Acc) ->
-    parse_content(Rest, Flag, Acc);
-parse_content(<<H, Rest/binary>>, Flag, Acc) ->
-    parse_content(Rest, Flag, <<Acc/binary, H>>).
+%% parse_content(<<Flag>>, Flag, Acc) ->
+%%     unescape(Acc);
+%% parse_content(<<Flag, Rest/binary>>, Flag, Acc) ->
+%%     parse_content(Rest, Flag, Acc);
+%% parse_content(<<H, Rest/binary>>, Flag, Acc) ->
+%%     parse_content(Rest, Flag, <<Acc/binary, H>>).
+
+escape(Body, ?FB_7E) -> escape_7e(Body, <<>>);
+escape(Body, ?FB_3E) -> escape_3e(Body, <<>>).
+
+unescape(Body, ?FB_7E) -> unescape_7e(Body, <<>>);
+unescape(Body, ?FB_3E) -> unescape_3e(Body, <<>>).
 
 
-escape(Body) -> escape(Body, <<>>).
-escape(<<>>, Acc) -> Acc;
-escape(<<16#3D, T/binary>>, Acc) ->
-    escape(T, <<Acc/binary,(?ESCAPED_3D)/binary>>);
-escape(<<16#3E, T/binary>>, Acc) ->
-    escape(T, <<Acc/binary,(?ESCAPED_3E)/binary>>);
-escape(<<H:1/binary, T/binary>>, Acc) ->
-    escape(T, <<Acc/binary, H/binary>>).
+escape_3e(<<>>, Acc) -> Acc;
+escape_3e(<<16#3D, T/binary>>, Acc) ->
+    escape_3e(T, <<Acc/binary, 16#3D, 16#01>>);
+escape_3e(<<16#3E, T/binary>>, Acc) ->
+    escape_3e(T, <<Acc/binary, 16#3D, 16#02>>);
+escape_3e(<<H:1/binary, T/binary>>, Acc) ->
+    escape_3e(T, <<Acc/binary, H/binary>>).
 
-unescape(Body) -> unescape(Body, <<>>).
-unescape(<<>>, Acc) -> Acc;
-unescape(<<16#3D, 16#01, T/binary>>, Acc) ->
-    unescape(T, <<Acc/binary, 16#3D>>);
-unescape(<<16#3D, 16#02, T/binary>>, Acc) ->
-    unescape(T, <<Acc/binary, 16#3E>>);
-unescape(<<H:1/binary, T/binary>>, Acc) ->
-    unescape(T, <<Acc/binary, H/binary>>).
+unescape_3e(<<>>, Acc) -> Acc;
+unescape_3e(<<16#3D, 16#01, T/binary>>, Acc) ->
+    unescape_3e(T, <<Acc/binary, 16#3D>>);
+unescape_3e(<<16#3D, 16#02, T/binary>>, Acc) ->
+    unescape_3e(T, <<Acc/binary, 16#3E>>);
+unescape_3e(<<H:1/binary, T/binary>>, Acc) ->
+    unescape_3e(T, <<Acc/binary, H/binary>>).
 
-%% calculate jt808 checksum
+
+escape_7e(<<>>, Acc) -> Acc;
+escape_7e(<<16#7D, T/binary>>, Acc) ->
+    escape_7e(T, <<Acc/binary, 16#7D, 16#01>>);
+escape_7e(<<16#7E, T/binary>>, Acc) ->
+    escape_7e(T, <<Acc/binary, 16#7D, 16#02>>);
+escape_7e(<<H:1/binary, T/binary>>, Acc) ->
+    escape_7e(T, <<Acc/binary, H/binary>>).
+
+unescape_7e(<<>>, Acc) -> Acc;
+unescape_7e(<<16#7D, 16#01, T/binary>>, Acc) ->
+    unescape_7e(T, <<Acc/binary, 16#7D>>);
+unescape_7e(<<16#7D, 16#02, T/binary>>, Acc) ->
+    unescape_7e(T, <<Acc/binary, 16#7E>>);
+unescape_7e(<<H:1/binary, T/binary>>, Acc) ->
+    unescape_7e(T, <<Acc/binary, H/binary>>).
+
+%% calculate jt808 checksum, return integer
 checksum(Data) ->                 checksum(iolist_to_binary(Data), 0).
 checksum(<<I, T/binary>>, Acc) -> checksum(T,  Acc bxor I);
-checksum(<<>>, Acc) ->            <<Acc>>.
+checksum(<<>>, Acc) ->            Acc.
 
 %% debug
 dump(#huwo_jt808_frame{

@@ -1,12 +1,14 @@
 -define(PROTOCOL_NAMES,  [{3, "JT808 3"}, {<<"201.1.1-huwo">>, "JT808-201.1-huwo"}]).
 
--define(FLAG_BOUNDARY, 16#3E).
--define(FLAG_BOUNDARYS, [16#7E, 16#3E]).
--define(ESCAPED_3E, <<16#3D, 16#02>>).
--define(ESCAPED_3D, <<16#3D, 16#01>>).
+-define(FB_7E, 16#7E).
+-define(FB_3E, 16#3E).
 
--define(RESERVED, 0).
+-define(FLAG_BOUNDARY, ?FB_7E).
+-define(FLAG_BOUNDARYS, [?FB_7E, ?FB_3E]).
+
 %%----------------------------------------- enum
+-define(RESERVED, 0).
+
 -define(NO_SEGMENT,   0).
 -define(NEED_SEGMENT, 1).
 
@@ -20,16 +22,17 @@
 -define(UINT16_OF(Val),  Val:16).
 -define(UINT32_OF(Val),  Val:32).
 -define(UINT_OF(Val, N), Val:(N*8)).
--define(BYTE_OF(Val),    Val/binary).
+-define(BYTE_OF(Val),    Val:1/binary).
 -define(WORD_OF(Val),    Val:2/binary).
 -define(DWORD_OF(Val),   Val:4/binary).
+-define(BYTES_OF(Val, N),Val:N/binary).
 -define(BCD_OF(Val, N),  (bin_utils:bcd_encode(Val, N))/binary).
 
 %%-----------------------------------------
 -define(UINT8(Val),  Val:8).
 -define(UINT16(Val), Val:16).
 -define(UINT32(Val), Val:32).
--define(BYTE(Val),   Val/binary).
+-define(BYTE(Val),   Val:1/binary).
 -define(WORD(Val),   Val:2/binary).
 -define(BCD(Val, N), Val:N/binary).
 
@@ -72,8 +75,9 @@
 
 -type message_id() :: any().
 
-%% -record(huwo_jt808_frame_options,
-%%         {boundary = ?FLAG_BOUNDARY}).
+-record(parse_state, {flag_boundary,
+                      segment_num,
+                      segment_sn}).
 
 -record(huwo_jt808_frame, {header, payload}).
 
@@ -166,7 +170,3 @@
                               dup :: boolean(),
                               message_id :: message_id(),
                               payload :: binary()}).
-
--record(parse_state, {flag_boundary,
-                      segment_num,
-                      segment_sn}).

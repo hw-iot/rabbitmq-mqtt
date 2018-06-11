@@ -136,6 +136,15 @@ test_serialise_v2() ->
     Mobile = ?BCD_VALUE(Mobile0),
     ?DEBUG(parse, {MessageID, MessageSN, Mobile, Segmentation, Encryption, Length}).
 
+test_reader() ->
+    Frame = <<126,1,2,0,11,1,50,0,0,0,3,0,12,49,50,51,52,53,54,55,56,57,48,65,116,126>>,
+    ?DEBUG(parse, Frame),
+    {ok, PackageParsed} = huwo_jt808_frame:parse(Frame, none),
+    ?DEBUG(parse,{ok, PackageParsed}),
+
+    %% huwo_jt808_reader:process_received_bytes(Bin)
+    ok.
+
 main(_) ->
     %% test_huwo_jt808_frame(),
     %% test_serialise_connect_frame(),
@@ -143,5 +152,6 @@ main(_) ->
     %% test_gen_ack(),
     %% test_frame_unknown(),
     %% test_data_type(),
-    test_serialise_v2(),
+    %% test_serialise_v2(),
+    test_reader(),
     io:fwrite("~n").
