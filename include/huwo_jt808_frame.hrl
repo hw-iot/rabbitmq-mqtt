@@ -5,6 +5,7 @@
 
 -define(FLAG_BOUNDARY, ?FB_7E).
 -define(FLAG_BOUNDARYS, [?FB_7E, ?FB_3E]).
+-define(IS_FLAG_BOUNDARY(Val), lists:member(Val, ?FLAG_BOUNDARYS)).
 
 %%----------------------------------------- enum
 -define(RESERVED, 0).
@@ -75,7 +76,7 @@
 
 -type message_id() :: any().
 
--record(parse_state, {flag_boundary,
+-record(parse_state, {boundary,
                       segment_num,
                       segment_sn}).
 

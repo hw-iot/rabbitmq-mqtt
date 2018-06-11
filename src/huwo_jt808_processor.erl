@@ -83,11 +83,12 @@ initial_state(Socket, SSLLoginName,
 %% 开始处理包
 %% 消息头已解析，可以取得消息类型MsgID。消息体 Payload 为二进制，待进一步解析
 %% 如果不是注册设备的消息，但状态中的connection没定义说明没有注册就发送其他信息
-process_frame(#huwo_jt808_frame{
-                 header = #huwo_jt808_frame_header{ id = Type }},
-              PState = #proc_state{ connection = undefined })
-  when Type =/= ?CONNECT ->
-    {error, connect_expected, PState};
+%% TODO
+%% process_frame(#huwo_jt808_frame{
+%%                  header = #huwo_jt808_frame_header{ id = Type }},
+%%               PState = #proc_state{ connection = undefined })
+%%   when Type =/= ?CONNECT ->
+%%     {error, connect_expected, PState};
 %% call(_, PState = initial_state:retrun:#proc_state)
 process_frame(#huwo_jt808_frame{
                  header = #huwo_jt808_frame_header{
@@ -754,6 +755,7 @@ amqp_pub(#huwo_jt808_msg{ qos        = Qos,
                       SeqNo + 1};
             false -> {UnackedPubs, ChQos0, SeqNo}
         end,
+    ?DEBUG(processor_amqp_pub, {Ch, Method, Msg}),
     amqp_channel:cast_flow(Ch, Method, Msg),
     PState #proc_state{ unacked_pubs   = UnackedPubs1,
                         awaiting_seqno = SeqNo1 }.

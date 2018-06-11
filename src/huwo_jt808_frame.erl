@@ -7,7 +7,9 @@
 -export([initial_state/0]).
 -export([parse/2, serialise/1]).
 -export([escape/2, unescape/2]).
+
 -export([dump/1]).
+-export([checksum/1]).
 
 -include("huwo_jt808.hrl").
 -include("huwo_jt808_frame.hrl").
@@ -17,21 +19,49 @@
 initial_state() -> none.
 
 %% API
+%% ...11 21.....2 ... 2..1.....1
 parse(<<>>, none) ->
     {more, fun(Bin) -> parse(Bin, none) end};
-parse(<<FlagBoundary:8, Rest/binary>>, none) ->
-    case lists:member(FlagBoundary, ?FLAG_BOUNDARYS) of
-        true ->
-            parse_header(Rest, #parse_state{flag_boundary = FlagBoundary});
-        _ ->
+parse(<<H:8, Rest/binary>>, none) ->
+    case ?IS_FLAG_BOUNDARY(H) of
+        true  ->
+            parse_body(Rest, <<>>, #parse_state{boundary = H});
+        false ->
             parse(Rest, none)
     end;
 parse(Bin, Cont) ->
-    bin_utils:dump(frame_parse_func, Cont),
     Cont(Bin).
 
-parse_header(<<>>, ParseState) ->
-    {more, fun(Bin) -> parse_header(Bin, ParseState) end};
+
+parse_body(<<>>, Body, ParseState) ->
+    {more, fun(BinMore) -> parse_body(BinMore, Body, ParseState) end};
+parse_body(<<H:8, Rest/binary>>, Body0, #parse_state{boundary = FB} = ParseState) ->
+    case H == FB of
+        true  ->
+            case verify_frame_length(Body0) of
+                true  ->
+                    Body1 = unescape(Body0, FB),
+                    ?DEBUG(checksum, checksum(Body1)),
+                    case checksum(Body1) of
+                        {true, Body} ->
+                            parse_header(Body, ParseState);
+                        {false, _} ->
+                            {error, invalid_checksum}
+                    end;
+                false ->
+                    {error, invalid_jt808_frame_len}
+            end;
+        false ->
+            parse_body(Rest, <<Body0/binary, H>>, ParseState)
+    end.
+
+
+verify_frame_length(<<>>) ->
+    false;
+verify_frame_length(_Body) ->
+    true.
+
+
 parse_header(<<?UINT16(MessageID),
                ?WORD(MessageProperty),
                ?BCD(Mobile, 6),
@@ -65,43 +95,21 @@ parse_header(<<?UINT16(MessageID),
 %% {error, Reason}
 %% {more, ParseFunc}
 %% {ok, #huwo_jt808_frame, Rest}
-parse_frame(_Bin, _Header, Len, _ParseState) when Len > ?MAX_LEN ->
-    {error, invalid_jt808_frame_len};
-parse_frame(<<>>, Header, Len, ParseState) ->
-    {more, fun(Bin) -> parse_frame(Bin, Header, Len, ParseState) end};
-parse_frame(TooShortBin, Header, Len, ParseState)
-  when byte_size(TooShortBin) < Len ->
-    {more, fun(BinMore) ->
-                   parse_frame(<<TooShortBin/binary, BinMore/binary>>,
-                               Header, Len, ParseState)
-           end};
-parse_frame(Bin, Header, Len,
-            #parse_state{flag_boundary = FlagBoundary} = ParseState) ->
+parse_frame(Bin, Header, Len, _ParseState) ->
     case Bin of
-        <<Body0:Len/binary, ?UINT8(CheckSum0),
-          ?UINT8(FlagBoundary), Rest/binary>> ->
-            CheckSum = checksum(Body0),
-            ?DEBUG(checksum, CheckSum),
-            ?DEBUG(checksum, CheckSum0),
-            ?DEBUG(checksum, {CheckSum0, CheckSum}),
-            case CheckSum == CheckSum0 of
-                true ->
-                    Body = unescape(Body0, FlagBoundary),
-                    case parse_body(Header, Body) of
-                        {ok, Payload} ->
-                            {ok, #huwo_jt808_frame{
-                                    header = Header, payload = Payload}, Rest};
-                        _ ->
-                            {error, frame_data_corrupt}
-                    end;
-                false ->
-                    {error, invalid_checksum}
+        <<Body:Len/binary, _Rest/binary>> ->
+            case parse_payload(Header, Body) of
+                {ok, Payload} ->
+                    {ok, #huwo_jt808_frame{
+                            header = Header, payload = Payload}, <<>>};
+                _ ->
+                    {error, frame_data_corrupt}
             end;
         _ANY ->
-            {more, fun(NewBin) -> parse_frame(NewBin, Header, Len, ParseState) end}
+            {error, invalid_jt808_frame}
     end.
 
-parse_body(#huwo_jt808_frame_header{ id = ?CONNECT }, Body) ->
+parse_payload(#huwo_jt808_frame_header{ id = ?CONNECT }, Body) ->
     ?PARSE_STRING0(Body,  Mobile,      Rest1),
     ?PARSE_STRING0(Rest1,    ClientName,  Rest2),
     ?PARSE_STRING0(Rest2,    Username,    Rest3),
@@ -123,7 +131,7 @@ parse_body(#huwo_jt808_frame_header{ id = ?CONNECT }, Body) ->
             proto_ver = ProtoVer,
             phone_os = ProtoOS,
             work_mode = WorkMode}};
-parse_body(_AnyHeader, Body) ->
+parse_payload(_AnyHeader, Body) ->
     {ok, Body}.
 
 %% serialise(huwo_jt808_frame())
@@ -227,10 +235,13 @@ unescape_7e(<<16#7D, 16#02, T/binary>>, Acc) ->
 unescape_7e(<<H:1/binary, T/binary>>, Acc) ->
     unescape_7e(T, <<Acc/binary, H/binary>>).
 
-%% calculate jt808 checksum, return integer
-checksum(Data) ->                 checksum(iolist_to_binary(Data), 0).
-checksum(<<I, T/binary>>, Acc) -> checksum(T,  Acc bxor I);
-checksum(<<>>, Acc) ->            Acc.
+
+%% calculate jt808 checksum, input binary, return boolean
+checksum(Data) -> checksum(Data, <<>>, 0).
+
+checksum(<<H>>, Body, CheckSum) -> {H == CheckSum, Body};
+checksum(<<H, T/binary>>, Body, CheckSum) -> checksum(T, <<Body/binary, H>>, CheckSum bxor H).
+
 
 %% debug
 dump(#huwo_jt808_frame{
