@@ -1,4 +1,4 @@
--define(PROTOCOL_NAMES,  [{3, "JT808 3"}, {<<"201.1.1-huwo">>, "JT808-201.1-huwo"}]).
+-define(PROTOCOL_NAMES,  [{<<"201.1.1">>, "JT808-201.1"}, {<<"201.1.1-huwo">>, "JT808-201.1-huwo"}]).
 
 -define(FB_7E, 16#7E).
 -define(FB_3E, 16#3E).
@@ -44,23 +44,32 @@
 %% returned int
 -define(PARSE_UINT8(Payload, Key, Rest), << Key:8, Rest/binary >> = Payload).
 
+%%-----------------------------------------
 -define(CLIENTACK,  16#0001).
 -define(SERVERACK,  16#8001).
+-define(HEARTBEAT,  16#0002).
 
--define(CONNECT,    16#0103).
--define(DISCONNECT, 16#0108).
+-define(SIGNIN,     16#0102).
+-define(SIGNUP,     16#0100).
+-define(SIGNUPACK,  16#8100).
+-define(SIGNOUT,    16#0003).
 
--define(GATEWAY,    16#0102).
--define(HEARTBEAT,  16#0105).
--define(GPSV1,      16#0203).
--define(GPSV2,      16#0205).
+-define(GPSREPORT,  16#0200).
 
--define(NEARBYCLIENT,  16#A201).
--define(REQEST_OK ,    16#B201).
--define(REQUEST_ERROR, 16#8001).
+%% -define(CONNECT,    16#0103).
+%% -define(DISCONNECT, 16#0108).
 
--define(PUSHACK ,  16#0001). % = CLIENTACK
--define(PUSH ,  16#8500).
+%% -define(GATEWAY,    16#0102).
+
+%% -define(GPSV1,      16#0203).
+%% -define(GPSV2,      16#0205).
+
+%% -define(NEARBYCLIENT,  16#A201).
+%% -define(REQEST_OK ,    16#B201).
+%% -define(REQUEST_ERROR, 16#8001).
+
+%% -define(PUSHACK ,  16#0001). % = CLIENTACK
+%% -define(PUSH ,  16#8500).
 
 %% connect return codes
 -define(CONNACK_ACCEPT,      0).
@@ -84,22 +93,20 @@
 
 -record(huwo_jt808_frame_header,
         {
+         client_id, % mobile
          message_id,
-         message_sn,
-         mobile,
-
-         id,
-         aes     = 0,
-         zip     = 0,
-         divide  = 0,
          length,
-         timestamp,
-         sn
+         message_sn
+         %% id,
+         %% aes     = 0,
+         %% zip     = 0,
+         %% divide  = 0,
+         %% timestamp,
+         %% sn
         }).
 
--record(huwo_jt808_frame_connect,
+-record(huwo_jt808_frame_signin,
         {
-         client_id, % = client_type + mobile
          clean_sess  = true,
          keep_alive  = 60,
          will_retain = false,
@@ -108,16 +115,30 @@
          will_msg,
          will_topic,
 
-         mobile,
-         client_name,
-         username,  % string | list
-         password,  % string | list
-         client_type,
-         phone_model,
-         proto_ver,
-         phone_os,
-         work_mode = 0
+         token % string
         }).
+
+%% -record(huwo_jt808_frame_connect,
+%%         {
+%%          client_id, % = client_type + mobile
+%%          clean_sess  = true,
+%%          keep_alive  = 60,
+%%          will_retain = false,
+%%          will_qos    = 0,
+%%          will_flag   = false,
+%%          will_msg,
+%%          will_topic,
+
+%%          mobile,
+%%          client_name,
+%%          username,  % string | list
+%%          password,  % string | list
+%%          client_type,
+%%          phone_model,
+%%          proto_ver,
+%%          phone_os,
+%%          work_mode = 0
+%%         }).
 
 -record(huwo_jt808_frame_ack,
         {

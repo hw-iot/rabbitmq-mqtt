@@ -92,7 +92,7 @@ initial_state(Socket, SSLLoginName,
 %% call(_, PState = initial_state:retrun:#proc_state)
 process_frame(#huwo_jt808_frame{
                  header = #huwo_jt808_frame_header{
-                             id = Type}} = Frame, PState) ->
+                             message_id = Type}} = Frame, PState) ->
     ?DEBUG(processor_process_frame_frame, Frame),
     case process_request(Type, Frame, PState) of
         {ok, PState1} -> {ok, PState1, PState1#proc_state.connection};
@@ -102,28 +102,20 @@ process_frame(#huwo_jt808_frame{
 %% call(?CONNECT, _, PState = initial_state:retrun:#proc_state)
 %% {huwo_jt808_frame,
 %%  {huwo_jt808_frame_header,259,0,0,0,77,201805141800,12},
-%%  {huwo_jt808_frame_connect,undefined,<<"13896079527">>,
+%%  {huwo_jt808_frame_signin,undefined,<<"13896079527">>,
 %%   <<"huwo-erlang-jt808-client">>,<<"user">>,<<"pass">>,0,
 %%   <<"iPhone 3G">>,<<"2.1.1OSX 10">>,<<"2.1.1OSX 10">>,1}}
-process_request(?CONNECT,
+process_request(?SIGNIN,
                 #huwo_jt808_frame{
-                   payload = #huwo_jt808_frame_connect{
-                                client_id = ClientId0,
+                   header  = #huwo_jt808_frame_header{
+                                client_id = ClientId0},
+                   payload = #huwo_jt808_frame_signin{
                                 clean_sess = CleanSess,
-                                keep_alive = Keepalive,
-
-                                mobile = _Mobile,
-                                client_name = _ClientName,
-                                username = Username,
-                                password = Password,
-                                client_type = _ClientType,
-                                phone_model = _PhoneModel,
-                                proto_ver = ProtoVersion,
-                                phone_os = _ProtoOS,
-                                work_mode = _WorkMode} = Var} = Request,
+                                keep_alive = Keepalive} = Var} = Request,
                 PState0 = #proc_state{ ssl_login_name = SSLLoginName,
                                        send_fun       = SendFun,
                                        adapter_info   = AdapterInfo = #amqp_adapter_info{additional_info = Extra} }) ->
+    {Username, Password, ProtoVersion} = {"guest", "guest", <<"201.1.1">>},
     %% ClientId = "013896079527" | "IYZ-hf2cvlQdS1IqCWTmqA"
     ClientId = case ClientId0 of
                    []    -> rabbit_mqtt_util:gen_client_id();
@@ -407,9 +399,9 @@ session_present(Channel, ClientId)  ->
 %%                          will_msg = undefined,
 %%                          username = undefined,
 %%                          password = undefined}).
-make_will_msg(#huwo_jt808_frame_connect{ will_flag   = false }) ->
+make_will_msg(#huwo_jt808_frame_signin{ will_flag   = false }) ->
     undefined;
-make_will_msg(#huwo_jt808_frame_connect{ will_retain = Retain,
+make_will_msg(#huwo_jt808_frame_signin{ will_retain = Retain,
                                          will_qos    = Qos,
                                          will_topic  = Topic,
                                          will_msg    = Msg }) ->
@@ -841,8 +833,8 @@ human_readable_mqtt_version(_) ->
     "N/A".
 
 send_client(Response, #proc_state{ socket = Sock }) ->
-    Frame = huwo_jt808_frame:serialise(Response),
     ?DEBUG(processor_send_client_response, Response),
+    Frame = huwo_jt808_frame:serialise(Response),
     ?DEBUG(processor_send_client_frame, Frame),
     rabbit_net:port_command(Sock, Frame).
 

@@ -12,9 +12,8 @@
 test_huwo_jt808_frame()->
     PackageOrigin = #huwo_jt808_frame{
                        header = #huwo_jt808_frame_header{
-                                   id = 42,
-                                   timestamp = 201806011200,
-                                   sn = 1},
+                                   message_id = 42,
+                                   message_sn = 1},
                        payload = <<"hello, 808!", 16#3D, 16#3E>>},
 
     huwo_jt808_frame:dump(PackageOrigin),
@@ -54,22 +53,17 @@ test_send_package() ->
 
 gen_connect_frame() ->
     huwo_jt808_session:warp(
-      {?CONNECT, 1,
-       #huwo_jt808_frame_connect{
-          mobile = "13896079527",
-          client_name = "huwo-jt808-erlang-client",
-          username = "guest",
-          password = "guest",
-          client_type = 2,
-          phone_model = "iPhone 3G",
-          proto_ver = "201.1.1-huwo",
-          phone_os = "OSX 10",
-          work_mode = 1}}).
+      {?SIGNIN, 1,
+       #huwo_jt808_frame_signin{
+          token = "1234567890A"}}).
 
 test_serialise_connect_frame()->
     Request = gen_connect_frame(),
     Frame = huwo_jt808_frame:serialise(Request),
     bin_utils:dump(frame, Frame),
+
+    Frame0 = <<126,1,2,0,11,1,50,0,0,0,3,0,12,49,50,51,52,53,54,55,56,57,48,65,116,126>>,
+    ?DEBUG(parse, Frame0),
     ok.
 
 test_parse_connect_frame()->
@@ -152,12 +146,12 @@ test_reader() ->
 
 main(_) ->
     %% test_huwo_jt808_frame(),
-    %% test_serialise_connect_frame(),
+    test_serialise_connect_frame(),
     %% test_parse_connect_frame(),
     %% test_gen_ack(),
     %% test_frame_unknown(),
     %% test_data_type(),
     %% test_serialise_v2(),
-    test_reader(),
+    %% test_reader(),
     %% test_checksum(),
     io:fwrite("~n").
