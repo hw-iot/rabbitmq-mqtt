@@ -37,7 +37,6 @@ parse_body(<<H:8, Rest/binary>>, Body0, #parse_state{boundary = FB} = ParseState
             case verify_frame_length(Body0) of
                 true  ->
                     Body1 = unescape(Body0, FB),
-                    ?DEBUG(checksum, checksum(Body1)),
                     case checksum(Body1) of
                         {true, Body, _CheckSum} ->
                             parse_header(Body, ParseState);
@@ -112,7 +111,7 @@ parse_payload(_AnyHeader, Body) ->
     {ok, Body}.
 
 %% serialise(huwo_jt808_frame())
-serialise(#huwo_jt808_frame{ header = Header, payload = Payload0 }) ->
+serialise(#huwo_jt808_frame{ header = Header, payload = Payload0 } = _Request) ->
     Payload = serialise_payload(Payload0),
     serialise_frame(Header, Payload);
 serialise(Bin) ->
@@ -125,7 +124,7 @@ serialise_payload(#huwo_jt808_frame_ack{
                      ack_id = ID,
                      ack_code = ReturnCode}) ->
     <<?UINT16(SN), ?UINT16(ID), ?UINT8(ReturnCode)>>;
-serialise_payload(Bin) when is_binary(Bin) -> bin;
+serialise_payload(Bin) when is_binary(Bin) -> Bin;
 serialise_payload(Any) -> term_to_binary(Any).
 
 serialise_frame(#huwo_jt808_frame_header{

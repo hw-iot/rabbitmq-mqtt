@@ -326,7 +326,7 @@ pstate(State = #state {}, PState = #proc_state{}) ->
 %% call(_, none)
 parse(Bytes, ParseState) ->
     try
-        ?DEBUG(reader_parse_bytes, Bytes),
+        ?DEBUG(request_frame, Bytes),
         huwo_jt808_frame:parse(Bytes, ParseState)
     catch
         _:Reason ->

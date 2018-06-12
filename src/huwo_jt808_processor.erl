@@ -92,7 +92,7 @@ initial_state(Socket, SSLLoginName,
 process_frame(#huwo_jt808_frame{
                  header = #huwo_jt808_frame_header{
                              message_id = Type}} = Frame, PState) ->
-    ?DEBUG(processor_process_frame_frame, Frame),
+    ?DEBUG(request, Frame),
     case process_request(Type, Frame, PState) of
         {ok, PState1} -> {ok, PState1, PState1#proc_state.connection};
         Ret -> Ret
@@ -111,7 +111,8 @@ process_request(?SIGNIN,
                                 client_id = ClientId0},
                    payload = #huwo_jt808_frame_signin{
                                 clean_sess = CleanSess,
-                                keep_alive = Keepalive} = Var} = Request,
+                                keep_alive = Keepalive,
+                                token = Token} = Var} = Request,
                 PState0 = #proc_state{ ssl_login_name = SSLLoginName,
                                        send_fun       = SendFun,
                                        adapter_info   = AdapterInfo = #amqp_adapter_info{additional_info = Extra} }) ->
@@ -187,8 +188,8 @@ process_request(?SIGNIN,
     %%                                    return_code = ReturnCode}},
     %%         PState1),
     SendFun(huwo_jt808_session:response(Request, ReturnCode), PState1),
-    Msg = #huwo_jt808_msg{ qos = ?QOS_0, payload = <<"bingo">>, topic = <<"topic">>},
-    ?DEBUG(process_request_publish_amqp_pub, Msg),
+    PublishMessage = io_lib:format("~s:~s", [ClientId, Token]),
+    Msg = #huwo_jt808_msg{ qos = ?QOS_0, payload = list_to_binary(PublishMessage), topic = <<"auth">>},
     amqp_pub(Msg, PState1),
     %% TODO hw-iot ----------------
     process_subscribe([#huwo_topic{name = "topic", qos=2}], PState1),
@@ -196,10 +197,11 @@ process_request(?SIGNIN,
 process_request(?HEARTBEAT, Request, PState = #proc_state{send_fun = SendFun}) ->
     SendFun(huwo_jt808_session:response(Request, ?ACK_OK), PState),
     {ok, PState};
-process_request(_AnyType, #huwo_jt808_frame{payload = Payload} = Request,
+process_request(_AnyType, Request,
                 PState = #proc_state{send_fun = SendFun}) ->
     SendFun(huwo_jt808_session:response(Request, ?ACK_OK), PState),
-    Msg = #huwo_jt808_msg{ qos = ?QOS_0, payload = Payload, topic = <<"topic">>},
+    Payload = huwo_jt808_frame:serialise(Request),
+    Msg = #huwo_jt808_msg{ qos = ?QOS_0, payload = Payload, topic = <<"jt808">>},
     amqp_pub(Msg, PState),
     {ok, PState}.
 
@@ -412,9 +414,9 @@ session_present(Channel, ClientId)  ->
 make_will_msg(#huwo_jt808_frame_signin{ will_flag   = false }) ->
     undefined;
 make_will_msg(#huwo_jt808_frame_signin{ will_retain = Retain,
-                                         will_qos    = Qos,
-                                         will_topic  = Topic,
-                                         will_msg    = Msg }) ->
+                                        will_qos    = Qos,
+                                        will_topic  = Topic,
+                                        will_msg    = Msg }) ->
     %% TODO
     #mqtt_msg{ retain  = Retain,
                qos     = Qos,
@@ -757,7 +759,9 @@ amqp_pub(#huwo_jt808_msg{ qos        = Qos,
                       SeqNo + 1};
             false -> {UnackedPubs, ChQos0, SeqNo}
         end,
-    ?DEBUG(processor_amqp_pub, {Ch, Method, Msg}),
+
+    ?DEBUG(publish_message, Payload),
+    %% ?DEBUG(processor_amqp_pub, {Ch, Method, Msg}),
     amqp_channel:cast_flow(Ch, Method, Msg),
     PState #proc_state{ unacked_pubs   = UnackedPubs1,
                         awaiting_seqno = SeqNo1 }.
@@ -843,9 +847,9 @@ human_readable_mqtt_version(_) ->
     "N/A".
 
 send_client(Response, #proc_state{ socket = Sock }) ->
-    ?DEBUG(processor_send_client_response, Response),
+    ?DEBUG(response, Response),
     Frame = huwo_jt808_frame:serialise(Response),
-    ?DEBUG(processor_send_client_frame, Frame),
+    ?DEBUG(response_frame, Frame),
     rabbit_net:port_command(Sock, Frame).
 
 close_connection(PState = #proc_state{ connection = undefined }) ->

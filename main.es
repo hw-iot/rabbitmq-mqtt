@@ -142,6 +142,18 @@ test_reader() ->
     %% huwo_jt808_reader:process_received_bytes(Bin)
     ok.
 
+test_s2() ->
+    Frame = <<126,2,0,0,42,1,50,0,0,0,3,0,21,128,3,64,5,0,79,218,195,1,203,153,142,6,
+              130,81,33,3,34,2,158,0,30,24,6,18,23,24,22,1,4,0,1,232,72,2,2,0,100,3,2,
+              2,158,95,126>>,
+    ?DEBUG(frame, Frame),
+    {ok, Request, _Rest} = huwo_jt808_frame:parse(Frame, none),
+    ?DEBUG(request, Request),
+
+    Frame1 = huwo_jt808_frame:serialise(Request),
+    bin_utils:dump(frame, Frame1),
+    ok.
+
 main(_) ->
     %% test_huwo_jt808_frame(),
     %% test_serialise_connect_frame(),
@@ -151,5 +163,6 @@ main(_) ->
     %% test_data_type(),
     %% test_serialise_v2(),
     %% test_reader(),
-    test_checksum(),
+    %% test_checksum(),
+    test_s2(),
     io:fwrite("~n").
