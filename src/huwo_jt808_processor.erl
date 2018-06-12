@@ -1,7 +1,7 @@
 -module(huwo_jt808_processor).
 
 -export([info/2, initial_state/2, initial_state/4,
-         process_frame/2, amqp_pub/2, amqp_callback/2, send_will/1,
+         process_frame/3, amqp_pub/2, amqp_callback/2, send_will/1,
          close_connection/1]).
 
 %% for testing purposes
@@ -91,9 +91,9 @@ initial_state(Socket, SSLLoginName,
 %% call(_, PState = initial_state:retrun:#proc_state)
 process_frame(#huwo_jt808_frame{
                  header = #huwo_jt808_frame_header{
-                             message_id = Type}} = Frame, PState) ->
+                             message_id = Type}} = Frame, Input, PState) ->
     ?DEBUG(request, Frame),
-    case process_request(Type, Frame, PState) of
+    case process_request(Type, Frame, Input, PState) of
         {ok, PState1} -> {ok, PState1, PState1#proc_state.connection};
         Ret -> Ret
     end.
@@ -113,6 +113,7 @@ process_request(?SIGNIN,
                                 clean_sess = CleanSess,
                                 keep_alive = Keepalive,
                                 token = Token} = Var} = Request,
+                _Input,
                 PState0 = #proc_state{ ssl_login_name = SSLLoginName,
                                        send_fun       = SendFun,
                                        adapter_info   = AdapterInfo = #amqp_adapter_info{additional_info = Extra} }) ->
@@ -194,14 +195,13 @@ process_request(?SIGNIN,
     %% TODO hw-iot ----------------
     process_subscribe([#huwo_topic{name = "topic", qos=2}], PState1),
     {ok, PState1};
-process_request(?HEARTBEAT, Request, PState = #proc_state{send_fun = SendFun}) ->
+process_request(?HEARTBEAT, Request, _Input, PState = #proc_state{send_fun = SendFun}) ->
     SendFun(huwo_jt808_session:response(Request, ?ACK_OK), PState),
     {ok, PState};
-process_request(_AnyType, Request,
+process_request(_AnyType, Request, Input,
                 PState = #proc_state{send_fun = SendFun}) ->
     SendFun(huwo_jt808_session:response(Request, ?ACK_OK), PState),
-    Payload = huwo_jt808_frame:serialise(Request),
-    Msg = #huwo_jt808_msg{ qos = ?QOS_0, payload = Payload, topic = <<"jt808">>},
+    Msg = #huwo_jt808_msg{ qos = ?QOS_0, payload = Input, topic = <<"jt808">>},
     amqp_pub(Msg, PState),
     {ok, PState}.
 

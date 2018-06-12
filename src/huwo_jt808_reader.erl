@@ -278,7 +278,7 @@ process_received_bytes(Bytes,
              ensure_stats_timer(control_throttle( State #state{ parse_state = ParseState1 })),
              hibernate};
         {ok, Frame, Rest}->
-            case huwo_jt808_processor:process_frame(Frame, ProcState) of
+            case huwo_jt808_processor:process_frame(Frame, Bytes, ProcState) of
                 {ok, ProcState1, ConnPid} ->
                     PS = huwo_jt808_frame:initial_state(),
                     process_received_bytes(
