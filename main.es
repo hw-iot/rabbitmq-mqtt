@@ -48,9 +48,6 @@ test_send_package() ->
     %% bin_utils:dump(response, jt808_send(Package)),
     ok.
 
-%% -define(PARSE_STRING0(Payload, Key, Rest), [Key, Rest] = binary:split(Payload, [<<0,0>>])).
-%% -define(PARSE_UINT8(Payload, Key, Rest), << Key:8, Rest/binary >> = Payload).
-
 gen_connect_frame() ->
     huwo_jt808_session:warp(
       {?SIGNIN, 1,

@@ -103,10 +103,11 @@ parse_frame(Bin, Header, Len, _ParseState) ->
             {error, invalid_jt808_frame}
     end.
 
-%%----------------------------------------- parse_payload
+%%----------------------------------------- [FILL] parse_payload
 parse_payload(#huwo_jt808_frame_header{ message_id = ?SIGNIN}, Body) ->
-    {ok, #huwo_jt808_frame_signin{
-            token = Body}};
+    {ok, #huwo_jt808_frame_signin{token = Body}};
+parse_payload(#huwo_jt808_frame_header{ message_id = ?HEARTBEAT}, _Body) ->
+    {ok, #huwo_jt808_frame_heartbeat{}};
 parse_payload(_AnyHeader, Body) ->
     {ok, Body}.
 
@@ -117,7 +118,7 @@ serialise(#huwo_jt808_frame{ header = Header, payload = Payload0 }) ->
 serialise(Bin) ->
     Bin.
 
-%%----------------------------------------- serialise_payload
+%%----------------------------------------- [FILL] serialise_payload
 serialise_payload(#huwo_jt808_frame_signin{token = Token}) -> list_to_binary(Token);
 serialise_payload(#huwo_jt808_frame_ack{
                      ack_sn = SN,

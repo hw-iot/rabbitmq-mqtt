@@ -39,11 +39,6 @@
 -define(BCD(Val, N), Val:N/binary).
 
 -define(BCD_VALUE(Val), bin_utils:bcd_decode(Val)).
-%% TODO return string?
-%% returned binary
--define(PARSE_STRING0(Payload, Key, Rest), [Key, Rest] = binary:split(Payload, [<<0,0>>])).
-%% returned int
--define(PARSE_UINT8(Payload, Key, Rest), << Key:8, Rest/binary >> = Payload).
 
 %%-----------------------------------------
 -define(CLIENTACK,  16#0001).
@@ -57,11 +52,11 @@
 
 -define(GPSREPORT,  16#0200).
 
-%%
+%% for client or server ack
 -define(ACK_OK,      0).
 -define(ACK_FAIL,    0).
 
-%% connect return codes
+%% siginin (connect) return codes
 -define(CONNACK_ACCEPT,      0).
 -define(CONNACK_PROTO_VER,   1). %% unacceptable protocol version
 -define(CONNACK_INVALID_ID,  2). %% identifier rejected
@@ -87,12 +82,6 @@
          message_id,
          length,
          message_sn
-         %% id,
-         %% aes     = 0,
-         %% zip     = 0,
-         %% divide  = 0,
-         %% timestamp,
-         %% sn
         }).
 
 -record(huwo_jt808_frame_signin,
@@ -108,28 +97,6 @@
          token % string
         }).
 
-%% -record(huwo_jt808_frame_connect,
-%%         {
-%%          client_id, % = client_type + mobile
-%%          clean_sess  = true,
-%%          keep_alive  = 60,
-%%          will_retain = false,
-%%          will_qos    = 0,
-%%          will_flag   = false,
-%%          will_msg,
-%%          will_topic,
-
-%%          mobile,
-%%          client_name,
-%%          username,  % string | list
-%%          password,  % string | list
-%%          client_type,
-%%          phone_model,
-%%          proto_ver,
-%%          phone_os,
-%%          work_mode = 0
-%%         }).
-
 -record(huwo_jt808_frame_ack,
         {
          ack_sn,
@@ -137,22 +104,13 @@
          ack_code
         }).
 
+-record(huwo_jt808_frame_heartbeat, {}).
+
 -record(huwo_jt808_frame_unknown,
         {
          foo,
          bar
         }).
-
-%% TODO: 需要研究消息内容对JT808协议是否有用途，如何修改
--record(huwo_jt808_msg,       {retain :: boolean(),
-                               qos :: ?QOS_0 | ?QOS_1 | ?QOS_2,
-                               topic :: string(),
-                               dup :: boolean(),
-                               message_id :: message_id(),
-                               payload :: binary()}).
-
--type huwo_jt808_msg() :: #huwo_jt808_msg{}.
-
 
 %% --------------------------------------------------------
 %% common struct
@@ -161,7 +119,6 @@
 
 %%  为了开发时兼容原mqtt协议的部分代码
 %%  TODO: 完全替换为jt808需要去掉此部分
-
 -record(mqtt_frame, {fixed,
                      variable,
                      payload}).
@@ -184,3 +141,13 @@
                               payload :: binary()}).
 
 -type mqtt_msg() :: #mqtt_msg{}.
+
+%% TODO: 需要研究消息内容对JT808协议是否有用途，如何修改
+-record(huwo_jt808_msg,       {retain :: boolean(),
+                               qos :: ?QOS_0 | ?QOS_1 | ?QOS_2,
+                               topic :: string(),
+                               dup :: boolean(),
+                               message_id :: message_id(),
+                               payload :: binary()}).
+
+-type huwo_jt808_msg() :: #huwo_jt808_msg{}.

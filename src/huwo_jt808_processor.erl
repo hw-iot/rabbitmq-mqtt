@@ -98,6 +98,7 @@ process_frame(#huwo_jt808_frame{
         Ret -> Ret
     end.
 
+%%----------------------------------------- [FILL] process request
 %% call(?CONNECT, _, PState = initial_state:retrun:#proc_state)
 %% {huwo_jt808_frame,
 %%  {huwo_jt808_frame_header,259,0,0,0,77,201805141800,12},
@@ -192,6 +193,9 @@ process_request(?SIGNIN,
     %% TODO hw-iot ----------------
     process_subscribe([#huwo_topic{name = "topic", qos=2}], PState1),
     {ok, PState1};
+process_request(?HEARTBEAT, Request, PState = #proc_state{send_fun = SendFun}) ->
+    SendFun(huwo_jt808_session:response(Request, ?ACK_OK), PState),
+    {ok, PState};
 process_request(_AnyType, #huwo_jt808_frame{payload = Payload} = Request,
                 PState = #proc_state{send_fun = SendFun}) ->
     SendFun(huwo_jt808_session:response(Request, ?ACK_OK), PState),
