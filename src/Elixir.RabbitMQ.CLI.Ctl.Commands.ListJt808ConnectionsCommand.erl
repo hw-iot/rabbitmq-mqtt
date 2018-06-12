@@ -13,10 +13,10 @@
 %% The Initial Developer of the Original Code is GoPivotal, Inc.
 %% Copyright (c) 2007-2016 Pivotal Software, Inc.  All rights reserved.
 
--module('Elixir.RabbitMQ.CLI.Ctl.Commands.ListMqttConnectionsCommand').
+-module('Elixir.RabbitMQ.CLI.Ctl.Commands.ListJt808ConnectionsCommand').
 
 -behaviour('Elixir.RabbitMQ.CLI.CommandBehaviour').
--include("rabbit_mqtt.hrl").
+-include("huwo_jt808.hrl").
 
 -export([formatter/0, scopes/0, switches/0, aliases/0,
          usage/0, usage_additional/0, banner/2,
@@ -42,10 +42,10 @@ merge_defaults(Args, Opts) ->
     {Args, maps:merge(#{verbose => false}, Opts)}.
 
 usage() ->
-    <<"list_mqtt_connections [<mqtt_connectioninfoitem> ...]">>.
+    <<"list_jt808_connections [<jt808_connectioninfoitem> ...]">>.
 
 usage_additional() ->
-      <<"<mqtt_connectioninfoitem> must be a member of the list [",
+      <<"<jt808_connectioninfoitem> must be a member of the list [",
         ('Elixir.Enum':join(?INFO_ITEMS, <<", ">>))/binary,
         "].">>.
 
@@ -60,14 +60,14 @@ run(Args, #{node := NodeName,
 
     'Elixir.RabbitMQ.CLI.Ctl.RpcStream':receive_list_items(
         NodeName,
-        rabbit_mqtt,
+        huwo_jt808,
         emit_connection_info_all,
         [Nodes, InfoKeys],
         Timeout,
         InfoKeys,
         length(Nodes)).
 
-banner(_, _) -> <<"Listing MQTT connections ...">>.
+banner(_, _) -> <<"Listing JT808 connections ...">>.
 
 output(Result, _Opts) ->
     'Elixir.RabbitMQ.CLI.DefaultOutput':output(Result).

@@ -14,19 +14,27 @@
 %% Copyright (c) 2007-2014 GoPivotal, Inc.  All rights reserved.
 %%
 
--module(rabbit_mqtt_retained_msg_store).
+-module(huwo_jt808_retained_msg_store_noop).
 
--export([behaviour_info/1, table_name_for/1]).
+-behaviour(huwo_jt808_retained_msg_store).
+-include("huwo_jt808.hrl").
 
-behaviour_info(callbacks) ->
-    [{new,       2},
-     {recover,   2},
-     {insert,    3},
-     {lookup,    2},
-     {delete,    2},
-     {terminate, 1}];
-behaviour_info(_Other) ->
-    undefined.
+-export([new/2, recover/2, insert/3, lookup/2, delete/2, terminate/1]).
 
-table_name_for(VHost) ->
-  rabbit_mqtt_util:vhost_name_to_table_name(VHost).
+new(_Dir, _VHost) ->
+  ok.
+
+recover(_Dir, _VHost) ->
+  {ok, ok}.
+
+insert(_Topic, _Msg, _State) ->
+  ok.
+
+lookup(_Topic, _State) ->
+  not_found.
+
+delete(_Topic, _State) ->
+  ok.
+
+terminate(_State) ->
+  ok.

@@ -13,7 +13,7 @@ define PROJECT_ENV
 			{vhost, <<"/">>},
 			{exchange, <<"amq.topic">>},
 			{subscription_ttl, 86400000}, %% 24 hours
-			{retained_message_store, rabbit_mqtt_retained_msg_store_dets},
+			{retained_message_store, huwo_jt808_retained_msg_store_dets},
 			%% only used by DETS store
 			{retained_message_store_dets_sync_interval, 2000},
 			{prefetch, 10},

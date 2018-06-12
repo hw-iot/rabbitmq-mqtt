@@ -27,11 +27,11 @@ init([]) ->
 
 handle_event({event, vhost_created, Info, _, _}, State) ->
   Name = pget(name, Info),
-  rabbit_mqtt_retainer_sup:child_for_vhost(Name),
+  huwo_jt808_retainer_sup:child_for_vhost(Name),
   {ok, State};
 handle_event({event, vhost_deleted, Info, _, _}, State) ->
   Name = pget(name, Info),
-  rabbit_mqtt_retainer_sup:delete_child(Name),
+  huwo_jt808_retainer_sup:delete_child(Name),
   {ok, State};
 handle_event(_Event, State) ->
   {ok, State}.

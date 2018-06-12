@@ -48,7 +48,7 @@ dump(M, B) when is_binary(B) ->
     {ok, Octets} = convert(B, hex),
     io:format("~s~n", [Octets]),
 
-    bin_utils:pprint(B);
+    pprint(B);
 
 dump(M, B) when is_bitstring(B) ->
     <<X/bitstring>> = B,

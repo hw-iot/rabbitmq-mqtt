@@ -62,7 +62,6 @@ handle_call({register, ClientId, Pid}, _From,
     {reply, ok, State#state{client_ids = Ids2}};
 
 handle_call({unregister, ClientId, Pid}, _From, State = #state{client_ids = Ids}) ->
-    io:fwrite("unregister, ClientId: ~p, Pid ~p", [ClientId, Pid]),
     {Reply, Ids1} = case maps:find(ClientId, Ids) of
                         {ok, {Pid, MRef}} -> erlang:demonitor(MRef),
                                              {ok, maps:remove(ClientId, Ids)};

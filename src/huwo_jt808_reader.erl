@@ -26,7 +26,6 @@
 -include_lib("amqp_client/include/amqp_client.hrl").
 %% TODO: 暂时先用mqtt的头部, 后面用自己的头, state需要修改
 %% 注意: mqtt协议中的messageid概念和jt808的messageid概念不一样，jt808的messageid类似mqtt的type，
--include("rabbit_mqtt.hrl").
 -include("huwo_jt808.hrl").
 
 -define(SIMPLE_METRICS, [pid, recv_oct, send_oct, reductions]).

@@ -14,7 +14,7 @@
 %% Copyright (c) 2007-2014 GoPivotal, Inc.  All rights reserved.
 %%
 
--module(rabbit_mqtt_retainer_sup).
+-module(huwo_jt808_retainer_sup).
 -behaviour(supervisor2).
 
 -export([start_link/1, init/1, start_child/2,start_child/1, child_for_vhost/1,
@@ -29,20 +29,20 @@ start_link(SupName) ->
   supervisor2:start_link(SupName, ?MODULE, []).
 
 child_for_vhost(VHost) when is_binary(VHost) ->
-  case rabbit_mqtt_retainer_sup:start_child(VHost) of
+  case huwo_jt808_retainer_sup:start_child(VHost) of
     {ok, Pid}                       -> Pid;
     {error, {already_started, Pid}} -> Pid
   end.
 
 start_child(VHost) when is_binary(VHost) ->
-  start_child(rabbit_mqtt_retainer:store_module(), VHost).
+  start_child(huwo_jt808_retainer:store_module(), VHost).
 
 start_child(RetainStoreMod, VHost) ->
   supervisor2:start_child(?MODULE,
 
     {vhost_to_atom(VHost),
-      {rabbit_mqtt_retainer, start_link, [RetainStoreMod, VHost]},
-      permanent, 60, worker, [rabbit_mqtt_retainer]}).
+      {huwo_jt808_retainer, start_link, [RetainStoreMod, VHost]},
+      permanent, 60, worker, [huwo_jt808_retainer]}).
 
 delete_child(VHost) ->
   Id = vhost_to_atom(VHost),
@@ -50,16 +50,16 @@ delete_child(VHost) ->
   ok = supervisor2:delete_child(?MODULE, Id).
 
 init([]) ->
-  Mod = rabbit_mqtt_retainer:store_module(),
-  rabbit_log:info("MQTT retained message store: ~p~n",
+  Mod = huwo_jt808_retainer:store_module(),
+  rabbit_log:info("JT808 retained message store: ~p~n",
     [Mod]),
   {ok, {{one_for_one, 5, 5}, child_specs(Mod, rabbit_vhost:list())}}.
 
 child_specs(Mod, VHosts) ->
   %% see start_child/2
   [{vhost_to_atom(V),
-      {rabbit_mqtt_retainer, start_link, [Mod, V]},
-      permanent, infinity, worker, [rabbit_mqtt_retainer]} || V <- VHosts].
+      {huwo_jt808_retainer, start_link, [Mod, V]},
+      permanent, infinity, worker, [huwo_jt808_retainer]} || V <- VHosts].
 
 vhost_to_atom(VHost) ->
     %% we'd like to avoid any conversion here because

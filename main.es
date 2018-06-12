@@ -26,7 +26,7 @@ test_huwo_jt808_frame()->
 
 %% jt808_client
 jt808_send(Package) ->
-    {ok, Socket} = gen_tcp:connect("localhost", 1883, [{active, false}, binary]),
+    {ok, Socket} = gen_tcp:connect("localhost", 8898, [{active, false}, binary]),
     bin_utils:dump(socket, Socket),
     ok = gen_tcp:send(Socket, Package),
     receive_data(Socket, []).

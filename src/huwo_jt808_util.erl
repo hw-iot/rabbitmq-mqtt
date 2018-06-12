@@ -14,13 +14,13 @@
 %% Copyright (c) 2007-2017 Pivotal Software, Inc.  All rights reserved.
 %%
 
--module(rabbit_mqtt_util).
+-module(huwo_jt808_util).
 
--include("rabbit_mqtt.hrl").
+-include("huwo_jt808.hrl").
 
 -export([subcription_queue_name/1,
-         mqtt2amqp/1,
-         amqp2mqtt/1,
+         jt8082amqp/1,
+         amqp2jt808/1,
          gen_client_id/0,
          env/1,
          table_lookup/2,
@@ -30,19 +30,19 @@
         ]).
 
 subcription_queue_name(ClientId) ->
-    Base = "mqtt-subscription-" ++ ClientId ++ "qos",
+    Base = "jt808-subscription-" ++ ClientId ++ "qos",
     {list_to_binary(Base ++ "0"), list_to_binary(Base ++ "1")}.
 
-%% amqp mqtt descr
+%% amqp jt808 descr
 %% *    +    match one topic level
 %% #    #    match multiple topic levels
 %% .    /    topic level separator
-mqtt2amqp(Topic) ->
+jt8082amqp(Topic) ->
     erlang:iolist_to_binary(
       re:replace(re:replace(Topic, "/", ".", [global]),
                  "[\+]", "*", [global])).
 
-amqp2mqtt(Topic) ->
+amqp2jt808(Topic) ->
     erlang:iolist_to_binary(
       re:replace(re:replace(Topic, "[\*]", "+", [global]),
                  "[\.]", "/", [global])).
@@ -72,7 +72,7 @@ vhost_name_to_dir_name(VHost) ->
     vhost_name_to_dir_name(VHost, ".ets").
 vhost_name_to_dir_name(VHost, Suffix) ->
     <<Num:128>> = erlang:md5(VHost),
-    "mqtt_retained_" ++ rabbit_misc:format("~36.16.0b", [Num]) ++ Suffix.
+    "jt808_retained_" ++ rabbit_misc:format("~36.16.0b", [Num]) ++ Suffix.
 
 path_for(Dir, VHost) ->
   filename:join(Dir, vhost_name_to_dir_name(VHost)).
@@ -83,4 +83,4 @@ path_for(Dir, VHost, Suffix) ->
 
 vhost_name_to_table_name(VHost) ->
   <<Num:128>> = erlang:md5(VHost),
-  list_to_atom("rabbit_mqtt_retained_" ++ rabbit_misc:format("~36.16.0b", [Num])).
+  list_to_atom("huwo_jt808_retained_" ++ rabbit_misc:format("~36.16.0b", [Num])).

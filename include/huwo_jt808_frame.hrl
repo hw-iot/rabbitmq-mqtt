@@ -182,3 +182,5 @@
                               dup :: boolean(),
                               message_id :: message_id(),
                               payload :: binary()}).
+
+-type mqtt_msg() :: #mqtt_msg{}.

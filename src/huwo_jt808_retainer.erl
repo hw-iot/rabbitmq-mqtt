@@ -14,11 +14,11 @@
 %% Copyright (c) 2007-2014 GoPivotal, Inc.  All rights reserved.
 %%
 
--module(rabbit_mqtt_retainer).
+-module(huwo_jt808_retainer).
 
 -behaviour(gen_server2).
--include("rabbit_mqtt.hrl").
--include("rabbit_mqtt_frame.hrl").
+-include("huwo_jt808.hrl").
+-include("huwo_jt808_frame.hrl").
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3, start_link/2]).

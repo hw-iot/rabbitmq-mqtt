@@ -8,7 +8,6 @@
 -export([get_vhost_username/1, get_vhost/3, get_vhost_from_user_mapping/2]).
 
 -include_lib("amqp_client/include/amqp_client.hrl").
--include("rabbit_mqtt.hrl").
 -include("huwo_jt808.hrl").
 -include("huwo_jt808_frame.hrl").
 
@@ -35,10 +34,10 @@
 %%    exchange = <<"amq.topic">>,
 %%    adapter_info = #amqp_adapter_info{
 %%       host = {0,0,0,0,0,0,0,1},
-%%       port = 1883,
+%%       port = 8898,
 %%       peer_host = {0,0,0,0,0,0,0,1},
 %%       peer_port = 60266,
-%%       name = <<"[::1]:60266 -> [::1]:1883">>,
+%%       name = <<"[::1]:60266 -> [::1]:8898">>,
 %%       protocol = {'JT808', "N/A"},
 %%       additional_info = [{channels, 1},
 %%                          {channel_max, 1},
@@ -49,7 +48,7 @@
 %%    ssl_login_name = none,
 %%    retainer_pid = undefined,
 %%    auth_state = undefined,
-%%    send_fun #Fun<rabbit_mqtt_processor.0.11017165>}
+%%    send_fun #Fun<huwo_jt808_processor.0.11017165>}
 initial_state(Socket, SSLLoginName) ->
     RealSocket = rabbit_net:unwrap_socket(Socket),
     initial_state(RealSocket, SSLLoginName,
@@ -73,7 +72,7 @@ initial_state(Socket, SSLLoginName,
                  subscriptions  = #{},
                  consumer_tags  = {undefined, undefined},
                  channels       = {undefined, undefined},
-                 exchange       = rabbit_mqtt_util:env(exchange),
+                 exchange       = huwo_jt808_util:env(exchange),
                  socket         = Socket,
                  adapter_info   = AdapterInfo,
                  ssl_login_name = SSLLoginName,
@@ -118,7 +117,7 @@ process_request(?SIGNIN,
     {Username, Password, ProtoVersion} = {"guest", "guest", <<"201.1.1">>},
     %% ClientId = "013896079527" | "IYZ-hf2cvlQdS1IqCWTmqA"
     ClientId = case ClientId0 of
-                   []    -> rabbit_mqtt_util:gen_client_id();
+                   []    -> huwo_jt808_util:gen_client_id();
                    [_|_] -> ClientId0
                end,
     AdapterInfo1 = AdapterInfo#amqp_adapter_info{
@@ -149,14 +148,14 @@ process_request(?SIGNIN,
                         case process_login(UserBin, PassBin, ProtoVersion, PState) of
                             {?CONNACK_ACCEPT, Conn, VHost, AState} ->
                                 RetainerPid =
-                                    rabbit_mqtt_retainer_sup:child_for_vhost(VHost),
+                                    huwo_jt808_retainer_sup:child_for_vhost(VHost),
                                 link(Conn),
                                 {ok, Ch} = amqp_connection:open_channel(Conn),
                                 link(Ch),
                                 amqp_channel:enable_delivery_flow_control(Ch),
                                 ok = huwo_jt808_collector:register(
                                        ClientId, self()),
-                                Prefetch = rabbit_mqtt_util:env(prefetch),
+                                Prefetch = huwo_jt808_util:env(prefetch),
                                 #'basic.qos_ok'{} = amqp_channel:call(
                                                       Ch, #'basic.qos'{prefetch_count = Prefetch}),
                                 huwo_jt808_reader:start_keepalive(self(), Keepalive),
@@ -188,7 +187,7 @@ process_request(?SIGNIN,
     %%         PState1),
     SendFun(huwo_jt808_session:response(Request, ReturnCode), PState1),
     Msg = #huwo_jt808_msg{ qos = ?QOS_0, payload = <<"bingo">>, topic = <<"topic">>},
-    bin_utils:dump(process_request_publish_amqp_pub, Msg),
+    ?DEBUG(process_request_publish_amqp_pub, Msg),
     amqp_pub(Msg, PState1),
     %% TODO hw-iot ----------------
     process_subscribe([#huwo_topic{name = "topic", qos=2}], PState1),
@@ -203,16 +202,16 @@ process_request(_AnyType, #huwo_jt808_frame{payload = Payload} = Request,
 %%---------------------------------------------------------------------
 hand_off_to_retainer(RetainerPid, Topic, #huwo_jt808_msg{payload = <<"">>}) ->
     %% TODO: retainer支持
-    rabbit_mqtt_retainer:clear(RetainerPid, Topic),
+    huwo_jt808_retainer:clear(RetainerPid, Topic),
     ok;
 hand_off_to_retainer(RetainerPid, Topic, Msg) ->
     %% TODO: retainer支持
-    rabbit_mqtt_retainer:retain(RetainerPid, Topic, Msg),
+    huwo_jt808_retainer:retain(RetainerPid, Topic, Msg),
     ok.
 
 maybe_send_retained_message(RPid, #huwo_topic{name = S, qos = SubscribeQos}, MsgId,
                             #proc_state{ send_fun = SendFun } = PState) ->
-    case rabbit_mqtt_retainer:fetch(RPid, S) of
+    case huwo_jt808_retainer:fetch(RPid, S) of
         undefined -> false;
         Msg       ->
             %% calculate effective QoS as the lower value of SUBSCRIBE frame QoS
@@ -282,7 +281,7 @@ amqp_callback({#'basic.deliver'{ consumer_tag = ConsumerTag,
               %%                                end,
               %%                            topic_name =
               %%                                %% TODO: 替换为JT808
-              %%                                rabbit_mqtt_util:amqp2mqtt(
+              %%                                huwo_jt808_util:amqp2jt808(
               %%                                  RoutingKey) },
               %%              payload = Payload},
               Payload,
@@ -335,7 +334,7 @@ delivery_dup({#'basic.deliver'{ redelivered = Redelivered },
               #amqp_msg{ props = #'P_basic'{ headers = Headers }},
               _DeliveryCtx}) ->
     %% TODO: 替换为JT808
-    case rabbit_mqtt_util:table_lookup(Headers, <<"x-mqtt-dup">>) of
+    case huwo_jt808_util:table_lookup(Headers, <<"x-jt808-dup">>) of
         undefined   -> Redelivered;
         {bool, Dup} -> Redelivered orelse Dup
     end.
@@ -355,7 +354,7 @@ next_msg_id(PState = #proc_state{ message_id = MsgId0 }) ->
 %% decide at which qos level to deliver based on subscription
 %% and the message publish qos level. non-MQTT publishes are
 %% assumed to be qos 1, regardless of delivery_mode.
-%% {function_clause,[{huwo_jt808_processor,delivery_qos,[<<"amq.ctag-0BCwf6nw9UhcaOLtVgadSg">>,undefined,{proc_state,#Port<0.13271>,#{},{undefined,undefined},{0,nil},{0,nil},undefined,1,undefined,undefined,undefined,{undefined,undefined},undefined,<<"amq.topic">>,{amqp_adapter_info,{0,0,0,0,0,0,0,1},1883,{0,0,0,0,0,0,0,1},50119,<<"[::1]:50119 -> [::1]:1883">>,{'JT808',"N/A"},[{channels,1},{channel_max,1},{frame_max,0},{client_properties,[{<<"product">>,longstr,<<"JT808 client">>}]},{ssl,false}]},none,undefined,undefined,#Fun<huwo_jt808_processor.0.12800453>}],[{file,"src/huwo_jt808_processor.erl"},{line,544}]}
+%% {function_clause,[{huwo_jt808_processor,delivery_qos,[<<"amq.ctag-0BCwf6nw9UhcaOLtVgadSg">>,undefined,{proc_state,#Port<0.13271>,#{},{undefined,undefined},{0,nil},{0,nil},undefined,1,undefined,undefined,undefined,{undefined,undefined},undefined,<<"amq.topic">>,{amqp_adapter_info,{0,0,0,0,0,0,0,1},8898,{0,0,0,0,0,0,0,1},50119,<<"[::1]:50119 -> [::1]:8898">>,{'JT808',"N/A"},[{channels,1},{channel_max,1},{frame_max,0},{client_properties,[{<<"product">>,longstr,<<"JT808 client">>}]},{ssl,false}]},none,undefined,undefined,#Fun<huwo_jt808_processor.0.12800453>}],[{file,"src/huwo_jt808_processor.erl"},{line,544}]}
 delivery_qos(_, _, _) ->
     {?QOS_1, ?QOS_1}.
 
@@ -363,7 +362,7 @@ delivery_qos(_, _, _) ->
 %%     {?QOS_0, ?QOS_0};
 %% delivery_qos(Tag, _Headers,   #proc_state{ consumer_tags = {_, Tag} }) ->
 %%     {?QOS_1, ?QOS_1}.
-%% case rabbit_mqtt_util:table_lookup(Headers, <<"x-mqtt-publish-qos">>) of
+%% case huwo_jt808_util:table_lookup(Headers, <<"x-jt808-publish-qos">>) of
 %%     {byte, Qos} -> {lists:min([Qos, ?QOS_1]), ?QOS_1};
 %%     undefined   -> {?QOS_1, ?QOS_1}
 %% end.
@@ -377,7 +376,7 @@ maybe_clean_sess(PState = #proc_state { clean_sess = false,
 maybe_clean_sess(PState = #proc_state { clean_sess = true,
                                         connection = Conn,
                                         client_id  = ClientId }) ->
-    {_, Queue} = rabbit_mqtt_util:subcription_queue_name(ClientId),
+    {_, Queue} = huwo_jt808_util:subcription_queue_name(ClientId),
     {ok, Channel} = amqp_connection:open_channel(Conn),
     try amqp_channel:call(Channel, #'queue.delete'{ queue = Queue }) of
         #'queue.delete_ok'{} -> ok = amqp_channel:close(Channel)
@@ -387,7 +386,7 @@ maybe_clean_sess(PState = #proc_state { clean_sess = true,
     {false, PState}.
 
 session_present(Channel, ClientId)  ->
-    {_, QueueQ1} = rabbit_mqtt_util:subcription_queue_name(ClientId),
+    {_, QueueQ1} = huwo_jt808_util:subcription_queue_name(ClientId),
     Declare = #'queue.declare'{queue   = QueueQ1,
                                passive = true},
     case amqp_channel:call(Channel, Declare) of
@@ -425,7 +424,7 @@ process_login(UserBin, PassBin, ProtoVersion,
                            adapter_info = AdapterInfo,
                            ssl_login_name = SslLoginName}) ->
     {ok, {_, _, _, ToPort}} = rabbit_net:socket_ends(Sock, inbound),
-    %% call get_vhost(<<"guest">>,none,1883)
+    %% call get_vhost(<<"guest">>,none,8898)
     %% returned {default_vhost, {<<"/">>, <<"guest">>}}
     {VHostPickedUsing, {VHost, UsernameBin}} = get_vhost(UserBin, SslLoginName, ToPort),
     rabbit_log_connection:info(
@@ -488,13 +487,10 @@ process_login(UserBin, PassBin, ProtoVersion,
             rabbit_log_connection:error("JT808 login failed for ~p auth_failure: vhost ~s does not exist~n",
                                         [binary_to_list(UserBin), VHost]),
             ?CONNACK_CREDENTIALS
-    end;
-process_login(_,_,_,P) ->
-    ?DEBUG(process_login_wtf_ps, P).
-
+    end.
 
 get_vhost(UserBin, none, Port) ->
-    %% call get_vhost_no_ssl(<<"guest">>,1883)
+    %% call get_vhost_no_ssl(<<"guest">>,8898)
     %% returned {default_vhost, {<<"/">>, <<"guest">>}}
     get_vhost_no_ssl(UserBin, Port);
 get_vhost(UserBin, undefined, Port) ->
@@ -510,11 +506,11 @@ get_vhost_no_ssl(UserBin, Port) ->
             PortVirtualHostMapping = rabbit_runtime_parameters:value_global(
                                        mqtt_port_to_vhost_mapping  % TODO
                                       ),
-            %% call get_vhost_from_port_mapping(1883,not_found)
+            %% call get_vhost_from_port_mapping(8898,not_found)
             %% returned get_vhost_from_port_mapping/2 -> undefined
             case get_vhost_from_port_mapping(Port, PortVirtualHostMapping) of
                 undefined ->
-                    {default_vhost, {rabbit_mqtt_util:env(vhost), UserBin}};
+                    {default_vhost, {huwo_jt808_util:env(vhost), UserBin}};
                 VHost ->
                     {port_to_vhost_mapping, {VHost, UserBin}}
             end
@@ -551,7 +547,7 @@ vhost_in_username(UserBin) ->
     end.
 
 get_vhost_username(UserBin) ->
-    Default = {rabbit_mqtt_util:env(vhost), UserBin},
+    Default = {huwo_jt808_util:env(vhost), UserBin},
     case application:get_env(?APP, ignore_colons_in_username) of
         {ok, true} -> Default;
         _ ->
@@ -597,8 +593,8 @@ human_readable_vhost_lookup_strategy(Val) ->
     atom_to_list(Val).
 
 creds(User, Pass, SSLLoginName) ->
-    DefaultUser   = rabbit_mqtt_util:env(default_user),
-    DefaultPass   = rabbit_mqtt_util:env(default_pass),
+    DefaultUser   = huwo_jt808_util:env(default_user),
+    DefaultPass   = huwo_jt808_util:env(default_pass),
     %% {DefaultUser, DefaultPass}.
     %% TODO
     {ok, Anon}    = application:get_env(?APP, allow_anonymous),
@@ -645,8 +641,8 @@ ensure_queue(Qos, #proc_state{ channels      = {Channel, _},
                                client_id     = ClientId,
                                clean_sess    = CleanSess,
                                consumer_tags = {TagQ0, TagQ1} = Tags} = PState) ->
-    {QueueQ0, QueueQ1} = rabbit_mqtt_util:subcription_queue_name(ClientId),
-    Qos1Args = case {rabbit_mqtt_util:env(subscription_ttl), CleanSess} of
+    {QueueQ0, QueueQ1} = huwo_jt808_util:subcription_queue_name(ClientId),
+    Qos1Args = case {huwo_jt808_util:env(subscription_ttl), CleanSess} of
                    {undefined, _} ->
                        [];
                    {Ms, false} when is_integer(Ms) ->
@@ -745,9 +741,9 @@ amqp_pub(#huwo_jt808_msg{ qos        = Qos,
                                awaiting_seqno = SeqNo }) ->
     Method = #'basic.publish'{ exchange    = Exchange,
                                routing_key =
-                                   rabbit_mqtt_util:mqtt2amqp(Topic)},
-    Headers = [{<<"x-mqtt-publish-qos">>, byte, Qos},
-               {<<"x-mqtt-dup">>, bool, Dup}],
+                                   huwo_jt808_util:jt8082amqp(Topic)},
+    Headers = [{<<"x-jt808-publish-qos">>, byte, Qos},
+               {<<"x-jt808-dup">>, bool, Dup}],
     Msg = #amqp_msg{ props   = #'P_basic'{ headers       = Headers,
                                            delivery_mode = delivery_mode(Qos)},
                      payload = Payload },
@@ -797,7 +793,7 @@ process_subscribe(Topics,
                             Binding = #'queue.bind'{
                                          queue       = Queue,
                                          exchange    = Exchange,
-                                         routing_key = rabbit_mqtt_util:mqtt2amqp(
+                                         routing_key = huwo_jt808_util:jt8082amqp(
                                                          TopicName)},
                             #'queue.bind_ok'{} = amqp_channel:call(Channel, Binding),
                             SupportedQosList = case maps:find(TopicName, Subs) of
@@ -892,7 +888,7 @@ check_topic_access(TopicName, Access,
                          kind = topic,
                          name = Exchange},
 
-    Context = #{routing_key  => rabbit_mqtt_util:mqtt2amqp(TopicName),
+    Context = #{routing_key  => huwo_jt808_util:jt8082amqp(TopicName),
                 variable_map => #{
                                   <<"username">>  => Username,
                                   <<"vhost">>     => VHost,
