@@ -1,9 +1,10 @@
--define(PROTOCOL_NAMES,  [{<<"201.1.1">>, "JT808-201.1"}, {<<"201.1.1-huwo">>, "JT808-201.1-huwo"}]).
+-define(PROTOCOL_NAMES,
+        [{<<"201.1.1">>, "JT808-201.1"},
+         {<<"201.1.1-huwo">>, "JT808-201.1-huwo"}]).
 
 -define(FB_7E, 16#7E).
 -define(FB_3E, 16#3E).
 
--define(FLAG_BOUNDARY, ?FB_7E).
 -define(FLAG_BOUNDARYS, [?FB_7E, ?FB_3E]).
 -define(IS_FLAG_BOUNDARY(Val), lists:member(Val, ?FLAG_BOUNDARYS)).
 
@@ -56,20 +57,9 @@
 
 -define(GPSREPORT,  16#0200).
 
-%% -define(CONNECT,    16#0103).
-%% -define(DISCONNECT, 16#0108).
-
-%% -define(GATEWAY,    16#0102).
-
-%% -define(GPSV1,      16#0203).
-%% -define(GPSV2,      16#0205).
-
-%% -define(NEARBYCLIENT,  16#A201).
-%% -define(REQEST_OK ,    16#B201).
-%% -define(REQUEST_ERROR, 16#8001).
-
-%% -define(PUSHACK ,  16#0001). % = CLIENTACK
-%% -define(PUSH ,  16#8500).
+%%
+-define(ACK_OK,      0).
+-define(ACK_FAIL,    0).
 
 %% connect return codes
 -define(CONNACK_ACCEPT,      0).

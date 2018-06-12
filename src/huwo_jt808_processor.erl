@@ -193,7 +193,9 @@ process_request(?SIGNIN,
     %% TODO hw-iot ----------------
     process_subscribe([#huwo_topic{name = "topic", qos=2}], PState1),
     {ok, PState1};
-process_request(_AnyType, #huwo_jt808_frame{payload = Payload}, PState) ->
+process_request(_AnyType, #huwo_jt808_frame{payload = Payload} = Request,
+                PState = #proc_state{send_fun = SendFun}) ->
+    SendFun(huwo_jt808_session:response(Request, ?ACK_OK), PState),
     Msg = #huwo_jt808_msg{ qos = ?QOS_0, payload = Payload, topic = <<"topic">>},
     amqp_pub(Msg, PState),
     {ok, PState}.
@@ -263,6 +265,9 @@ amqp_callback({#'basic.deliver'{ consumer_tag = ConsumerTag,
             {ok, PState};
         {Dup, {DeliveryQos, _SubQos} = Qos}     ->
             _ = {Dup, RoutingKey, DeliveryQos},
+            %% TODO: 替换为JT808报文。
+            %% QOS 实现逻辑
+            ?DEBUG(todo_amqp_callback1, "use jt808 frame"),
             SendFun(
               %% TODO: 替换为JT808报文
               %% #mqtt_frame{ fixed = #mqtt_frame_fixed{
@@ -303,8 +308,9 @@ amqp_callback(#'basic.ack'{ multiple = true, delivery_tag = Tag } = Ack,
     case gb_trees:size(UnackedPubs) > 0 andalso
         gb_trees:take_smallest(UnackedPubs) of
         {TagSmall, MsgId, UnackedPubs1} when TagSmall =< Tag ->
+            %% TODO: 替换为JT808报文
+            ?DEBUG(todo_amqp_callback2, "use jt808 frame"),
             SendFun(
-              %% TODO: 替换为JT808报文
               #mqtt_frame{ fixed    = #mqtt_frame_fixed{ type = ?PUBACK },
                            variable = #mqtt_frame_publish{ message_id = MsgId }},
               PState),
@@ -316,8 +322,9 @@ amqp_callback(#'basic.ack'{ multiple = true, delivery_tag = Tag } = Ack,
 amqp_callback(#'basic.ack'{ multiple = false, delivery_tag = Tag },
               PState = #proc_state{ unacked_pubs = UnackedPubs,
                                     send_fun     = SendFun }) ->
+    %% TODO: 替换为JT808报文
+    ?DEBUG(todo_amqp_callback3, "use jt808 frame"),
     SendFun(
-      %% TODO: 替换为JT808报文
       #mqtt_frame{ fixed    = #mqtt_frame_fixed{ type = ?PUBACK },
                    variable = #mqtt_frame_publish{
                                  message_id = gb_trees:get(
@@ -481,7 +488,10 @@ process_login(UserBin, PassBin, ProtoVersion,
             rabbit_log_connection:error("JT808 login failed for ~p auth_failure: vhost ~s does not exist~n",
                                         [binary_to_list(UserBin), VHost]),
             ?CONNACK_CREDENTIALS
-    end.
+    end;
+process_login(_,_,_,P) ->
+    ?DEBUG(process_login_wtf_ps, P).
+
 
 get_vhost(UserBin, none, Port) ->
     %% call get_vhost_no_ssl(<<"guest">>,1883)

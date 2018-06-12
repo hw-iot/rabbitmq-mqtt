@@ -30,6 +30,8 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% pack the digits of an integer as BCD in a given size of binary
 %% pad with leading zeros
+bcd_encode(N, Size) when is_list(N) ->
+    bcd_encode(list_to_integer(N), Size);
 bcd_encode(N, Size) ->
     << <<X:4>> || X <- lists:flatten(io_lib:fwrite("~*..0B", [Size*2, N])) >>.
 %% bcd_encode(N, S) when N >= 0, S > 0 ->

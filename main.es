@@ -132,7 +132,8 @@ test_serialise_v2() ->
 
 
 test_checksum() ->
-    Frame = <<1,2,0,11,1,50,0,0,0,3,0,12,49,50,51,52,53,54,55,56,57,48,65,116>>,
+    %% Frame = <<1,2,0,11,1,50,0,0,0,3,0,12,49,50,51,52,53,54,55,56,57,48,65,116>>,
+    Frame = <<128,1,0,5,1,50,0,0,0,3,0,47,0,46,1,2,0,45>>,
     ?DEBUG(checksum, huwo_jt808_frame:checksum(Frame)).
 
 test_reader() ->
@@ -146,12 +147,12 @@ test_reader() ->
 
 main(_) ->
     %% test_huwo_jt808_frame(),
-    test_serialise_connect_frame(),
+    %% test_serialise_connect_frame(),
     %% test_parse_connect_frame(),
     %% test_gen_ack(),
     %% test_frame_unknown(),
     %% test_data_type(),
     %% test_serialise_v2(),
     %% test_reader(),
-    %% test_checksum(),
+    test_checksum(),
     io:fwrite("~n").
