@@ -19,7 +19,7 @@ define PROJECT_ENV
 			{prefetch, 10},
 			{ssl_listeners, []},
 			{num_ssl_acceptors, 1},
-			{tcp_listeners, [1883]},
+			{tcp_listeners, [8898]},
 			{num_tcp_acceptors, 10},
 			{tcp_listen_options, [{backlog,   128},
 														{nodelay,   true}]},

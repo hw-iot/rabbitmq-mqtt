@@ -87,7 +87,7 @@ handle_info({'DOWN', MRef, process, DownPid, _Reason},
     Ids1 = maps:filter(fun (ClientId, {Pid, M})
                              when Pid =:= DownPid, MRef =:= M ->
                                rabbit_log_connection:warning(
-                                 "MQTT disconnect from ~p~n",
+                                 "JT808 disconnect from ~p~n",
                                  [ClientId]),
                                false;
                            (_, _) ->

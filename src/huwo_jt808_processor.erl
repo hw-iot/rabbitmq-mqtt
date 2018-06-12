@@ -588,7 +588,7 @@ get_vhost_from_port_mapping(Port, Mapping) ->
 human_readable_vhost_lookup_strategy(vhost_in_username_or_default) ->
     "vhost in username or default";
 human_readable_vhost_lookup_strategy(port_to_vhost_mapping) ->
-    "MQTT port to vhost mapping";
+    "JT808 port to vhost mapping";
 human_readable_vhost_lookup_strategy(cert_to_vhost_mapping) ->
     "client certificate to vhost mapping";
 human_readable_vhost_lookup_strategy(default_vhost) ->

@@ -31,6 +31,7 @@ start(normal, []) ->
               {error, {already_started, Pid}} -> Pid
             end,
     gen_event:add_handler(EMPid, huwo_jt808_vhost_event_handler, []),
+    io:format("rabbitmq-jt808 started at :~p...~n", [Listeners]),
     Result.
 
 stop(_State) ->
