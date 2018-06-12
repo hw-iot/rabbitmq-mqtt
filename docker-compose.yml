@@ -1,0 +1,15 @@
+version: '2'
+services:
+  rabbitmq_jt808:
+    build: ./
+    ports:
+      # rabbitmq
+      - "5672:5672"
+      # rabbitmq_management
+      - "15672:15672"
+      # rabbitmq_jt808
+      - "8898:8898"
+      # rabbitmq_mqtt
+      - "1883:1883"
+    expose:
+      - "15672"
