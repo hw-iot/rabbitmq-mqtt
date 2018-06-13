@@ -61,3 +61,11 @@ clean::
 
 tags::
 	find . -type f -iname "*.erl" -o -iname "*.hrl" | etags -
+
+docker:: clean dist
+	echo ok
+	mv ./plugins/rabbitmq_jt808-3.7.0*.ez ./plugins/rabbitmq_jt808-3.7.0.ez
+	docker build ./ -t huwo/rabbitmq:latest
+	docker tag huwo/rabbitmq:latest huwo/rabbitmq:3.7.2
+	docker push huwo/rabbitmq:3.7.2
+	docker push huwo/rabbitmq:latest

@@ -1,6 +1,6 @@
-# RabbitMQ JT808 Plugin
+* RabbitMQ JT808 Plugin
 
-## Getting Started
+** Getting Started
 
 This is an JT808 plugin for RabbitMQ.
 

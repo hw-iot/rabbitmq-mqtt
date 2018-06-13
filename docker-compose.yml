@@ -1,7 +1,7 @@
 version: '2'
 services:
-  rabbitmq_jt808:
-    build: ./
+  prod:
+    image: huwo/rabbitmq:latest
     ports:
       # rabbitmq
       - "5672:5672"
