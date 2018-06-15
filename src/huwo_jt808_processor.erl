@@ -193,7 +193,7 @@ process_request(?SIGNIN,
     Msg = #huwo_jt808_msg{ qos = ?QOS_0, payload = list_to_binary(PublishMessage), topic = <<"auth">>},
     amqp_pub(Msg, PState1),
     %% TODO hw-iot ----------------
-    process_subscribe([#huwo_topic{name = "topic", qos=2}], PState1),
+    process_subscribe([#huwo_topic{name = ClientId, qos=1}], PState1),
     {ok, PState1};
 process_request(?HEARTBEAT, Request, _Input, PState = #proc_state{send_fun = SendFun}) ->
     SendFun(huwo_jt808_session:response(Request, ?ACK_OK), PState),
