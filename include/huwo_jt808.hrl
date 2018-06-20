@@ -1,6 +1,4 @@
-%% -define(debug, true).
-
--ifdef(debug).
+-ifdef(bin_debug).
 -define(DEBUG(Key, Val), bin_utils:dump(Key, Val)).
 -else.
 -define(DEBUG(Key, Val), true).

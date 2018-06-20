@@ -55,6 +55,9 @@ ERLANG_MK_COMMIT = rabbitmq-tmp
 include rabbitmq-components.mk
 include erlang.mk
 
+ifdef debug
+	ERLC_OPTS := -Dbin_debug $(ERLC_OPTS)
+endif
 
 clean::
 	if test -d test/java_SUITE_data; then cd test/java_SUITE_data && $(MAKE) clean; fi
