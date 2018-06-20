@@ -62,7 +62,8 @@ info(Pid, InfoItems) ->
 %% gen_server callback
 
 init([KeepaliveSup, Ref, Sock]) ->
-    process_flag(trap_exit, true), % 主动捕获异常退出
+    %% 请注意，如果想让terminate/2 在应用程序停止时被调用，就必须 设置trap_exit = true
+    process_flag(trap_exit, true),
     RealSocket = rabbit_net:unwrap_socket(Sock),
     rabbit_networking:accept_ack(Ref, RealSocket),
     case rabbit_net:connection_string(Sock, inbound) of
