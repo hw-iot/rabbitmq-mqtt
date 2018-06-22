@@ -78,3 +78,11 @@ docker-local:: clean dist
 	docker tag hub.huwo.io/library/rabbitmq:latest hub.huwo.io/library/rabbitmq:3.7.6-1
 	docker push hub.huwo.io/library/rabbitmq:3.7.6-1
 	docker push hub.huwo.io/library/rabbitmq:latest
+
+deploy::
+	scp ./plugins/rabbitmq_jt808-3.7.0*.ez rabbitmq1.huwo.io:/usr/lib/rabbitmq/lib/rabbitmq_server-3.7.5/plugins/rabbitmq_jt808-3.7.0.ez
+	scp ./plugins/rabbitmq_jt808-3.7.0*.ez rabbitmq2.huwo.io:/usr/lib/rabbitmq/lib/rabbitmq_server-3.7.5/plugins/rabbitmq_jt808-3.7.0.ez
+	scp ./plugins/rabbitmq_jt808-3.7.0*.ez rabbitmq3.huwo.io:/usr/lib/rabbitmq/lib/rabbitmq_server-3.7.5/plugins/rabbitmq_jt808-3.7.0.ez
+	ssh rabbitmq1.huwo.io rabbitmq-plugins enable rabbitmq_jt808 rabbitmq_mqtt rabbitmq_web_mqtt
+	ssh rabbitmq2.huwo.io rabbitmq-plugins enable rabbitmq_jt808 rabbitmq_mqtt rabbitmq_web_mqtt
+	ssh rabbitmq3.huwo.io rabbitmq-plugins enable rabbitmq_jt808 rabbitmq_mqtt rabbitmq_web_mqtt

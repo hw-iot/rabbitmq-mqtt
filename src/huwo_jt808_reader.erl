@@ -331,7 +331,7 @@ parse(Bytes, ParseState) ->
         huwo_jt808_frame:parse(Bytes, ParseState)
     catch
         _:Reason ->
-            {error, {cannot_parse, Reason, erlang:get_stacktrace()}}
+            {error, {cannot_parse, Reason, 'erlang:get_stacktrace()'}}
     end.
 
 %%----------------------------------------------------------------------------
