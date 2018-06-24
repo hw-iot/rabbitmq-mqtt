@@ -86,3 +86,6 @@ deploy::
 	ssh rabbitmq1.huwo.io rabbitmq-plugins enable rabbitmq_jt808 rabbitmq_mqtt rabbitmq_web_mqtt
 	ssh rabbitmq2.huwo.io rabbitmq-plugins enable rabbitmq_jt808 rabbitmq_mqtt rabbitmq_web_mqtt
 	ssh rabbitmq3.huwo.io rabbitmq-plugins enable rabbitmq_jt808 rabbitmq_mqtt rabbitmq_web_mqtt
+
+compile-with-docker::
+	docker run --rm -v $(CURDIR):/app -w /app hg2c/erlang:20-rabbitmq make clean dist

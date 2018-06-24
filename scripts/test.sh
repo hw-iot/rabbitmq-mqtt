@@ -15,3 +15,4 @@ cat <(echo $DATA | xxd -r -p ) - | nc localhost 8898
 
 # cat <(echo 7E0102000B01320000000300013132333435363738393041797E | xxd -r -p ) - | nc localhost 8898
 # cat <(echo $DATA | xxd -r -p ) - | nc 172.29.0.20 8898
+# cat <(echo 7E0102000B01320000000300013132333435363738393041797E | xxd -r -p ) - | nc 172.29.0.20 8898
