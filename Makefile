@@ -79,7 +79,7 @@ docker-local:: clean dist
 	docker push hub.huwo.io/library/rabbitmq:3.7.6-1
 	docker push hub.huwo.io/library/rabbitmq:latest
 
-deploy::
+deploy:: compile-with-docker
 	scp ./plugins/rabbitmq_jt808-3.7.0*.ez rabbitmq1.huwo.io:/usr/lib/rabbitmq/lib/rabbitmq_server-3.7.5/plugins/rabbitmq_jt808-3.7.0.ez
 	scp ./plugins/rabbitmq_jt808-3.7.0*.ez rabbitmq2.huwo.io:/usr/lib/rabbitmq/lib/rabbitmq_server-3.7.5/plugins/rabbitmq_jt808-3.7.0.ez
 	scp ./plugins/rabbitmq_jt808-3.7.0*.ez rabbitmq3.huwo.io:/usr/lib/rabbitmq/lib/rabbitmq_server-3.7.5/plugins/rabbitmq_jt808-3.7.0.ez
@@ -89,3 +89,9 @@ deploy::
 
 compile-with-docker::
 	docker run --rm -v $(CURDIR):/app -w /app hg2c/erlang:20-rabbitmq make clean dist
+
+deploy-config::
+	scp etc/rabbitmq.config rabbitmq1.huwo.io:/etc/rabbitmq/rabbitmq.config
+	scp etc/rabbitmq.config rabbitmq2.huwo.io:/etc/rabbitmq/rabbitmq.config
+	scp etc/rabbitmq.config rabbitmq3.huwo.io:/etc/rabbitmq/rabbitmq.config
+	ssh rabbitmq1.huwo.io systemctl restart rabbitmq-server
