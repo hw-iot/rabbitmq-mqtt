@@ -117,7 +117,8 @@ process_request(?SIGNIN,
                 PState0 = #proc_state{ ssl_login_name = SSLLoginName,
                                        send_fun       = SendFun,
                                        adapter_info   = AdapterInfo = #amqp_adapter_info{additional_info = Extra} }) ->
-    {Username, Password, ProtoVersion} = {"guest", "guest", <<"201.1.1">>},
+    %% {Username, Password, ProtoVersion} = {"guest", "guest", <<"201.1.1">>},
+    {Username, Password, ProtoVersion} = {undefined, undefined, <<"201.1.1">>},
     %% ClientId = "013896079527" | "IYZ-hf2cvlQdS1IqCWTmqA"
     ClientId = case ClientId0 of
                    []    -> huwo_jt808_util:gen_client_id();

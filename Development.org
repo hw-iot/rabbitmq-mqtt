@@ -1,7 +1,9 @@
 * Jt808 development
 #+BEGIN_SRC shell
-gmake clean run-broker
+gmake clean run-broker debug=t
+
 ./scripts/test.sh
+
 /Volumes/Kayle/w/rabbitmq/rabbitmq-tutorials/erlang/emit_log_topic.erl
 /Volumes/Kayle/w/rabbitmq/rabbitmq-tutorials/erlang/receive_logs_topic.erl "#"
 #+END_SRC
