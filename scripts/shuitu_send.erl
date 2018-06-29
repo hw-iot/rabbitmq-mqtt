@@ -1,5 +1,5 @@
 #!/usr/bin/env escript
-%%! -pz ./amqp_client ./rabbit_common ./amqp_client/ebin ./rabbit_common/ebin ./recon/ebin ./rabbitmq-jt808/ebin
+%%! -pz /opt/rabbitmq/amqp_client /opt/rabbitmq/rabbit_common /opt/rabbitmq/amqp_client/ebin /opt/rabbitmq/rabbit_common/ebin /opt/rabbitmq/recon/ebin
 
 -include_lib("amqp_client/include/amqp_client.hrl").
 
