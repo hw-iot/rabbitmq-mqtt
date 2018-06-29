@@ -65,15 +65,15 @@ clean::
 tags::
 	find . -type f -iname "*.erl" -o -iname "*.hrl" | etags -
 
-docker:: clean dist
-	mv ./plugins/rabbitmq_jt808-3.7.0*.ez ./plugins/rabbitmq_jt808-3.7.0.ez
+docker-public:: compile-with-docker
+	cp ./plugins/rabbitmq_jt808-3.7.0*.ez ./plugins/rabbitmq_jt808-3.7.0.ez
 	docker build ./ -t huwo/rabbitmq:latest
 	docker tag huwo/rabbitmq:latest huwo/rabbitmq:3.7.4
 	docker push huwo/rabbitmq:3.7.4
 	docker push huwo/rabbitmq:latest
 
-docker-local:: clean dist
-	mv ./plugins/rabbitmq_jt808-3.7.0*.ez ./plugins/rabbitmq_jt808-3.7.0.ez
+docker:: compile-with-docker
+	cp ./plugins/rabbitmq_jt808-3.7.0*.ez ./plugins/rabbitmq_jt808-3.7.0.ez
 	docker build ./ -t hub.huwo.io/library/rabbitmq:latest
 	docker tag hub.huwo.io/library/rabbitmq:latest hub.huwo.io/library/rabbitmq:3.7.6-1
 	docker push hub.huwo.io/library/rabbitmq:3.7.6-1

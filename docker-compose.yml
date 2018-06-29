@@ -1,7 +1,7 @@
 version: '2'
 services:
   prod:
-    image: huwo/rabbitmq:latest
+    image: hg2c/erlang:20-rabbitmq
     ports:
       # rabbitmq
       - "5672:5672"
