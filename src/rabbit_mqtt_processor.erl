@@ -427,6 +427,7 @@ amqp_callback({#'basic.deliver'{ consumer_tag = ConsumerTag,
                   {?QOS_0, ?QOS_0} ->
                       {ok, PState};
                   {?QOS_1, ?QOS_1} ->
+                      %% insert(1,1,{0,nil})
                       Awaiting1 = gb_trees:insert(MsgId, DeliveryTag, Awaiting),
                       PState1 = PState#proc_state{ awaiting_ack = Awaiting1 },
                       PState2 = next_msg_id(PState1),
